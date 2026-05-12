@@ -922,73 +922,80 @@
         /* ── Settings Modal ── */
         .settings-modal {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            z-index: 1000;
+            inset: 0;
+            z-index: 9999;
             display: flex;
             align-items: flex-end;
-            opacity: 1;
-            transition: opacity 0.3s ease;
         }
 
         .settings-modal.hidden {
             display: none;
-            opacity: 0;
-            pointer-events: none;
         }
 
         .settings-overlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
             cursor: pointer;
         }
 
         .settings-panel {
             position: relative;
             width: 100%;
-            max-width: 500px;
-            max-height: 85vh;
-            max-height: 85dvh;
+            max-width: 540px;
+            /* svh = small viewport height (excludes browser chrome bar — best for Android) */
+            max-height: 92vh;
+            max-height: 92svh;
             margin: 0 auto;
             background: var(--surface);
             border: 1px solid var(--card-b);
-            border-radius: 20px 20px 0 0;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
             display: flex;
             flex-direction: column;
-            overflow: hidden;    /* begrenzt Inhalt auf max-height → macht .settings-content scrollbar */
-            box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.4);
-            animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-            padding-bottom: env(safe-area-inset-bottom);
+            overflow: hidden;
+            box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.45);
+            animation: slideUp 0.26s ease-out;
+            will-change: transform;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        .settings-panel.is-closing {
+            animation: slideDown 0.22s ease-in forwards;
         }
 
         @keyframes slideUp {
-            from {
-                transform: translateY(100%);
-            }
-            to {
-                transform: translateY(0);
-            }
+            from { transform: translateY(100%); }
+            to   { transform: translateY(0); }
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(0); }
+            to   { transform: translateY(100%); }
+        }
+
+        /* Drag handle affordance */
+        .settings-drag-handle {
+            width: 40px;
+            height: 4px;
+            background: var(--card-b);
+            border-radius: 2px;
+            margin: 10px auto 0;
+            flex-shrink: 0;
+            cursor: grab;
         }
 
         .settings-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 1.25rem;
+            padding: 1rem 1.25rem 1rem;
             border-bottom: 1px solid var(--card-b);
             flex-shrink: 0;
         }
 
         .settings-header h2 {
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             font-weight: 700;
             color: var(--text);
             margin: 0;
@@ -998,17 +1005,18 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 32px;
-            height: 32px;
+            width: 34px;
+            height: 34px;
             border-radius: 8px;
             border: none;
             background: var(--card);
             color: var(--text);
             cursor: pointer;
-            transition: all 0.2s;
+            transition: background 0.15s;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .settings-close:hover {
+        .settings-close:hover, .settings-close:active {
             background: var(--card-hov);
         }
 
@@ -1020,21 +1028,24 @@
         .settings-content {
             overflow-y: auto;
             flex: 1;
-            min-height: 0;       /* flex-item darf kleiner als Inhalt werden → scroll */
-            padding: 1.25rem;
+            min-height: 0;
+            padding: 1rem 1.25rem 1.25rem;
             display: flex;
             flex-direction: column;
-            gap: 1.5rem;
-            -webkit-overflow-scrolling: touch;   /* flüssiges Scrollen auf iOS */
+            gap: 1.25rem;
+            /* Critical for Android touch scrolling */
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            overscroll-behavior: contain;
         }
 
         .settings-content::-webkit-scrollbar {
-            width: 6px;
+            width: 4px;
         }
 
         .settings-content::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.15);
-            border-radius: 3px;
+            border-radius: 2px;
         }
 
         .settings-section {
@@ -1905,12 +1916,14 @@
         }
 
         /* ── Responsive ── */
-        @media (max-width: 500px) {
+        @media (max-width: 600px) {
             .settings-panel {
                 max-width: 100%;
-                border-radius: 16px 16px 0 0;
-                max-height: 92vh;
-                max-height: 92dvh;
+                border-top-left-radius: 16px;
+                border-top-right-radius: 16px;
+                /* On small phones give as much space as possible */
+                max-height: 95vh;
+                max-height: 95svh;
             }
         }
     </style>
@@ -2154,6 +2167,7 @@
 <div id="settings-modal" class="settings-modal hidden">
     <div class="settings-overlay"></div>
     <div class="settings-panel">
+        <div class="settings-drag-handle"></div>
         <div class="settings-header">
             <h2>Einstellungen</h2>
             <button id="settings-close" class="settings-close" aria-label="Schließen">

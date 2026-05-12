@@ -1823,6 +1823,9 @@ class SettingsManager {
         // Prevent modal close on content click
         document.querySelector('.settings-panel')?.addEventListener('click', e => e.stopPropagation());
 
+        // Swipe down to close on mobile
+        this.setupSwipeToClose();
+
         // Favorite button
         document.getElementById('favorite-btn')?.addEventListener('click', () => this.toggleCurrentFavorite());
 
@@ -2097,7 +2100,11 @@ class SettingsManager {
     }
 
     openModal() {
-        document.getElementById('settings-modal')?.classList.remove('hidden');
+        const modal = document.getElementById('settings-modal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        // Lock page scroll so only the panel scrolls on Android
+        document.body.style.overflow = 'hidden';
         this.updateFavoritesUI();
     }
 
@@ -2138,7 +2145,63 @@ class SettingsManager {
     }
 
     closeModal() {
-        document.getElementById('settings-modal')?.classList.add('hidden');
+        const modal = document.getElementById('settings-modal');
+        const panel = modal?.querySelector('.settings-panel');
+        if (!modal) return;
+        if (panel) {
+            panel.classList.add('is-closing');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                panel.classList.remove('is-closing');
+                document.body.style.overflow = '';
+            }, 220);
+        } else {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    }
+
+    setupSwipeToClose() {
+        const panel = document.querySelector('.settings-panel');
+        const content = document.querySelector('.settings-content');
+        if (!panel || !content) return;
+
+        let startY = 0, startTime = 0, isDragging = false, startedAtTop = false;
+
+        panel.addEventListener('touchstart', (e) => {
+            startY = e.touches[0].clientY;
+            startTime = Date.now();
+            isDragging = true;
+            startedAtTop = content.scrollTop <= 0;
+            panel.style.transition = 'none';
+        }, { passive: true });
+
+        panel.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            const dy = e.touches[0].clientY - startY;
+            // Only drag the panel itself when at top of content scrolling downward
+            if (dy > 0 && startedAtTop && content.scrollTop <= 0) {
+                panel.style.transform = `translateY(${dy}px)`;
+                panel.style.opacity = String(Math.max(0.5, 1 - dy / 400));
+            }
+        }, { passive: true });
+
+        const onEnd = (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            const dy = e.changedTouches[0].clientY - startY;
+            const dt = Math.max(1, Date.now() - startTime);
+            const velocity = dy / dt; // px/ms
+            panel.style.transition = '';
+            panel.style.transform = '';
+            panel.style.opacity = '';
+            if (dy > 110 || (dy > 40 && velocity > 0.45)) {
+                this.closeModal();
+            }
+        };
+
+        panel.addEventListener('touchend', onEnd, { passive: true });
+        panel.addEventListener('touchcancel', onEnd, { passive: true });
     }
 }
 
