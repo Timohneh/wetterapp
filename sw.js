@@ -1,15 +1,13 @@
-const CACHE_NAME = 'wetterapp-v1';
+const CACHE_NAME = 'wetterapp-v3';
 const URLS_TO_CACHE = [
     '/',
     '/index.html',
     '/app.js',
     '/manifest.json',
-    'https://cdn.tailwindcss.com',
+    'https://unpkg.com/lucide@latest',
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
     'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet-rainviewer/0.12.1/leaflet-rainviewer.min.js',
-    'https://tiles.stadiamaps.com/tiles/stamen_tonernight/6/32/21.png',
-    'https://tiles.stadiamaps.com/tiles/stamen_tonernight/10/520/336.png'
+    'https://cdnjs.cloudflare.com/ajax/libs/leaflet-rainviewer/0.12.1/leaflet-rainviewer.min.js'
 ];
 
 // Install Event - Cache assets

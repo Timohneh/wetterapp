@@ -1,7 +1,7 @@
 {
   "name": "Wetterapp Deutschland",
   "short_name": "Wetterapp",
-  "description": "Deutsche Wetter-PWA mit Multi-Modell-Vorhersagen von ICON-D2, ECMWF und GFS",
+  "description": "Deutsche Wetter-PWA mit Multi-Modell-Vorhersagen von ICON-D2, ECMWF, Météo-France, GFS und UK Met Office",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -56,14 +56,6 @@
           "type": "image/svg+xml"
         }
       ]
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%231a1a1a' width='540' height='720'/><text x='270' y='360' font-size='48' fill='%23fbbf24' text-anchor='middle' dominant-baseline='middle'>Wetterapp</text></svg>",
-      "sizes": "540x720",
-      "type": "image/svg+xml",
-      "form_factor": "narrow"
     }
   ],
   "prefer_related_applications": false
