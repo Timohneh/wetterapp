@@ -708,6 +708,20 @@
             cursor: pointer;
         }
 
+        /* Zeigt vergangene Radar-Frames (blau) vs. Nowcast-Frames (amber) */
+        .radar-slider.has-nowcast {
+            --radar-split: 80%;
+            accent-color: var(--accent);
+            background: linear-gradient(
+                to right,
+                rgba(59,130,246,0.4) 0%,
+                rgba(59,130,246,0.4) var(--radar-split),
+                rgba(245,158,11,0.5) var(--radar-split),
+                rgba(245,158,11,0.5) 100%
+            );
+            border-radius: 2px;
+        }
+
         .radar-time {
             font-size: 0.78rem;
             font-weight: 600;

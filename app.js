@@ -380,7 +380,7 @@ async function initRadar() {
         const data = await res.json();
         radarHost = data.host;
         const past    = (data.radar?.past    || []).map(f => ({ ...f, type: 'past' }));
-        const nowcast = (data.radar?.nowcast || []).slice(0, 3).map(f => ({ ...f, type: 'nowcast' }));
+        const nowcast = (data.radar?.nowcast || []).slice(0, 6).map(f => ({ ...f, type: 'nowcast' }));
         radarFrames = [...past, ...nowcast];
         if (!radarFrames.length) throw new Error('No frames');
 
@@ -388,7 +388,16 @@ async function initRadar() {
         showRadarFrame(radarFrameIdx);
 
         const slider = document.getElementById('radar-frame-slider');
-        if (slider) { slider.max = radarFrames.length - 1; slider.value = radarFrameIdx; }
+        if (slider) {
+            slider.max   = radarFrames.length - 1;
+            slider.value = radarFrameIdx;
+            // Farbverlauf: vergangene Frames grau, Nowcast-Frames bernstein
+            if (nowcast.length > 0) {
+                const splitPct = (past.length / radarFrames.length * 100).toFixed(1);
+                slider.style.setProperty('--radar-split', `${splitPct}%`);
+                slider.classList.add('has-nowcast');
+            }
+        }
         document.getElementById('radar-player')?.classList.remove('hidden');
     } catch (e) {
         console.error('Radar failed:', e);
@@ -416,10 +425,12 @@ function showRadarFrame(idx) {
 
     const timeEl = document.getElementById('radar-time-label');
     if (timeEl) {
-        const d = new Date(frame.time * 1000);
+        const d   = new Date(frame.time * 1000);
         const str = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
         if (frame.type === 'nowcast') {
-            timeEl.textContent = `${str} +`;
+            const diffMin = Math.round((frame.time - Date.now() / 1000) / 60);
+            const ahead   = diffMin > 0 ? `+${diffMin}min` : str;
+            timeEl.textContent = `${str} ${ahead}`;
             timeEl.style.color = 'var(--accent)';
         } else {
             timeEl.textContent = str;
@@ -532,7 +543,7 @@ async function fetchLongRange() {
     url.searchParams.set('latitude',  currentLat);
     url.searchParams.set('longitude', currentLon);
     url.searchParams.set('hourly',
-        'temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m');
+        'temperature_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,wind_speed_10m,cloud_cover');
     url.searchParams.set('daily', [
         'temperature_2m_max', 'temperature_2m_min', 'precipitation_sum',
         'weather_code', 'wind_speed_10m_max', 'precipitation_probability_max',
@@ -1332,11 +1343,13 @@ function displayWeatherReport(data, ensemble, dayOffset = 0) {
 function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) {
     const start = dayOffset * 24;
     const end   = start + 24;
-    const times = data.hourly.time.slice(start, end);
-    const temps = data.hourly.temperature_2m.slice(start, end);
-    const probs = (data.hourly.precipitation_probability || []).slice(start, end);
-    const codes = data.hourly.weather_code.slice(start, end);
-    const winds = (data.hourly.wind_speed_10m || []).slice(start, end);
+    const times      = data.hourly.time.slice(start, end);
+    const temps      = data.hourly.temperature_2m.slice(start, end);
+    const feelsTemps = (data.hourly.apparent_temperature || []).slice(start, end);
+    const probs      = (data.hourly.precipitation_probability || []).slice(start, end);
+    const codes      = data.hourly.weather_code.slice(start, end);
+    const winds      = (data.hourly.wind_speed_10m || []).slice(start, end);
+    const clouds     = (data.hourly.cloud_cover || []).slice(start, end);
 
     const container = document.getElementById(containerId);
     if (!container || !times.length) return;
@@ -1362,6 +1375,15 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
     const vLine  = (x, h, col) => x >= 0
         ? `<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${h}" stroke="${col}" stroke-width="1" stroke-dasharray="3,3"/>`
         : '';
+
+    // Gefühlte Temperatur – gestrichelte Linie im gleichen Koordinatensystem
+    let feelsLineSVG = '';
+    const validFT = feelsTemps.filter(t => t != null && !isNaN(t));
+    if (validFT.length >= 2) {
+        const fpts   = feelsTemps.map((t, i) => ({ x: i * COL_W + COL_W / 2, y: mapY(t ?? temps[i]) }));
+        const fcurve = smoothPath(fpts);
+        feelsLineSVG = `<path d="${fcurve}" fill="none" stroke="rgba(148,163,184,0.6)" stroke-width="1.5" stroke-dasharray="4,3" stroke-linecap="round"/>`;
+    }
 
     let spreadBandSVG = '';
     if (ensemble) {
@@ -1395,10 +1417,26 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
         </defs>
         ${vLine(nowX, CHART_H, 'rgba(245,158,11,0.25)')}
         ${spreadBandSVG}
+        ${feelsLineSVG}
         <path d="${area}" fill="url(#tg_${containerId})"/>
         <path d="${curve}" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
         ${tempDots}
         ${tempLabels}
+    </svg>`;
+
+    // Bewölkung – graue Balken von oben (Himmel), 20px hoch
+    const CLOUD_H   = 20;
+    const cloudBars = clouds.map((c, i) => {
+        const cc = c ?? 0;
+        if (cc < 8) return '';
+        const bh   = Math.max(2, (cc / 100) * (CLOUD_H - 2));
+        const x    = i * COL_W + 3, bw = COL_W - 6;
+        const opac = (0.07 + (cc / 100) * 0.22).toFixed(2);
+        return `<rect x="${x}" y="0" width="${bw}" height="${bh}" rx="1.5" fill="rgba(148,163,184,${opac})"/>`;
+    }).join('');
+    const cloudSVG = `<svg width="${W}" height="${CLOUD_H}" style="display:block">
+        ${vLine(nowX, CLOUD_H, 'rgba(245,158,11,0.15)')}
+        ${cloudBars}
     </svg>`;
 
     const PREC_H   = 40;
@@ -1438,12 +1476,17 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
     }).join('');
 
     const spreadNote = ensemble
-        ? `<span style="color:rgba(245,158,11,0.5)"><span class="cl-dot" style="background:rgba(245,158,11,0.35);width:10px;height:6px;border-radius:2px"></span>Modell-Spread</span>`
+        ? `<span style="color:rgba(245,158,11,0.5)"><span class="cl-dot" style="background:rgba(245,158,11,0.35);width:10px;height:6px;border-radius:2px"></span>Spread</span>`
+        : '';
+    const feelsNote = validFT.length >= 2
+        ? `<span><span style="display:inline-block;width:14px;height:0;border-top:2px dashed rgba(148,163,184,0.7);vertical-align:middle;margin-right:3px"></span>Gefühlt</span>`
         : '';
 
     container.innerHTML = `
     <div class="chart-legend">
         <span><span class="cl-dot" style="background:#f59e0b"></span>Temperatur</span>
+        ${feelsNote}
+        <span><span class="cl-dot" style="background:rgba(148,163,184,0.35);border-radius:2px;width:8px;height:6px"></span>Bewölkung</span>
         <span><span class="cl-dot" style="background:#60a5fa"></span>Niederschlag</span>
         <span><span class="cl-dot" style="background:#475569"></span>Wind km/h</span>
         ${spreadNote}
@@ -1451,6 +1494,7 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
     <div class="chart-outer">
         <div style="width:${W}px">
             <div class="ch-row">${iconRow}</div>
+            ${cloudSVG}
             ${tempSVG}
             ${precSVG}
             <div class="ch-row ch-winds">${windRow}</div>

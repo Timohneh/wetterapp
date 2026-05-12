@@ -4,14 +4,13 @@
 const VERSION    = '__CACHE_VERSION__';
 const CACHE_NAME = `wetterapp-${VERSION}`;
 
+// Nur lokale Dateien – externe CDN-URLs werden beim ersten Abruf automatisch
+// durch den Fetch-Handler gecacht und verursachen kein atomares addAll-Fehlschlag.
 const URLS_TO_CACHE = [
     '/',
     '/index.html',
     '/app.js',
-    '/manifest.json',
-    'https://unpkg.com/lucide@latest',
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'
+    '/manifest.json'
 ];
 
 // Install – neue Assets in neuen Cache legen, sofort aktivieren
@@ -55,8 +54,10 @@ self.addEventListener('fetch', (event) => {
             fetch(event.request)
                 .then((res) => {
                     if (res.ok) {
-                        caches.open(CACHE_NAME)
-                            .then((c) => c.put(event.request, res.clone()));
+                        // clone() MUSS vor return res aufgerufen werden –
+                        // danach ist der Body bereits konsumiert.
+                        const clone = res.clone();
+                        caches.open(CACHE_NAME).then((c) => c.put(event.request, clone));
                     }
                     return res;
                 })
