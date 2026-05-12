@@ -430,7 +430,7 @@ async function fetchModelHourly(model) {
     const url = new URL('https://api.open-meteo.com/v1/forecast');
     url.searchParams.set('latitude',      currentLat);
     url.searchParams.set('longitude',     currentLon);
-    url.searchParams.set('hourly',        'temperature_2m,wind_speed_10m');
+    url.searchParams.set('hourly',        'temperature_2m,wind_speed_10m,precipitation_probability,precipitation');
     url.searchParams.set('models',        model);
     url.searchParams.set('timezone',      'Europe/Berlin');
     url.searchParams.set('forecast_days', '2');
@@ -627,7 +627,7 @@ function displayRainDetail(longRange) {
     document.getElementById('rain-next-label').textContent  = nextRainLabel;
 }
 
-// ─── Precipitation Analysis Widget (Konsolidiert) ─────────────────────────────
+// ─── Precipitation Analysis Widget ───────────────────────────────────────────
 
 function displayPrecipitationAnalysis(data, ensemble, dayOffset = 0) {
     const widget = document.getElementById('precipitation-analysis-widget');
@@ -639,152 +639,238 @@ function displayPrecipitationAnalysis(data, ensemble, dayOffset = 0) {
 
     const start = dayOffset * 24;
     const end = start + 24;
-    
-    const times = (data.hourly.time ?? []).slice(start, end);
-    const temps = (data.hourly.temperature_2m ?? []).slice(start, end);
+    const nowHour = dayOffset === 0 ? new Date().getHours() : -1;
+
+    const times  = (data.hourly.time ?? []).slice(start, end);
+    const temps  = (data.hourly.temperature_2m ?? []).slice(start, end);
     const precips = (data.hourly.precipitation ?? []).slice(start, end);
-    const probabilities = (data.hourly.precipitation_probability ?? []).slice(start, end);
-    const clouds = (data.hourly.cloud_cover ?? []).slice(start, end);
-    const winds = (data.hourly.wind_speed_10m ?? []).slice(start, end);
+    const probs  = (data.hourly.precipitation_probability ?? []).slice(start, end);
+    const winds  = (data.hourly.wind_speed_10m ?? []).slice(start, end);
 
-    // 1. SUMMARY STATS
+    // Per-model ensemble data
+    const MODEL_COLORS = { icon: '#60a5fa', ecmwf: '#34d399', gfs: '#c084fc' };
+    const MODEL_LABELS = { icon: 'ICON-D2', ecmwf: 'ECMWF', gfs: 'GFS' };
+    const enData = ensemble ? Object.entries(ensemble)
+        .filter(([, m]) => m?.hourly?.precipitation_probability)
+        .map(([key, m]) => ({
+            key,
+            label: MODEL_LABELS[key] ?? key.toUpperCase(),
+            color: MODEL_COLORS[key] ?? '#94a3b8',
+            probs:  (m.hourly.precipitation_probability ?? []).slice(start, end),
+            precips: (m.hourly.precipitation ?? []).slice(start, end)
+        })) : [];
+
+    // Per-hour spread across models
+    const hourSpread = Array.from({ length: 24 }, (_, i) => {
+        const vals = enData.map(e => e.probs[i] ?? 0);
+        if (vals.length < 2) return { min: probs[i] ?? 0, max: probs[i] ?? 0, spread: 0 };
+        return { min: Math.min(...vals), max: Math.max(...vals), spread: Math.max(...vals) - Math.min(...vals) };
+    });
+
+    // Summary stats
     const totalPrecip = precips.reduce((a, b) => (a || 0) + (b || 0), 0);
-    const maxProb = Math.max(...probabilities.filter(p => p !== null && p !== undefined), 0);
-    const maxTemp = Math.max(...temps.filter(t => t !== null));
-    const minTemp = Math.min(...temps.filter(t => t !== null));
-    const maxCloud = Math.max(...clouds.filter(c => c !== null && c !== undefined), 0);
-    const maxWind = Math.max(...winds.filter(w => w !== null));
-
-    // 2. ENSEMBLE ANALYSIS
-    let consensusPercent = 0;
+    const maxProb = Math.max(...probs.filter(p => p != null), 0);
+    const maxRain = Math.max(...precips.filter(p => p != null), 0);
     let rainModels = 0;
-    let dryModels = 0;
-    let totalModels = 0;
-    
-    if (ensemble && ensemble.length > 0) {
-        ensemble.forEach(model => {
-            if (model.hourly?.precipitation) {
-                const modelPrecips = (model.hourly.precipitation ?? []).slice(start, end);
-                if (modelPrecips.some(p => (p || 0) > 0.1)) rainModels++;
-                else dryModels++;
-                totalModels++;
-            }
-        });
-        if (totalModels > 0) {
-            consensusPercent = Math.max(rainModels, dryModels) / totalModels * 100;
-        }
-    }
+    enData.forEach(e => { if (e.precips.some(p => (p || 0) > 0.1)) rainModels++; });
+    const totalModels = enData.length;
+    const consensusPercent = totalModels > 0 ? Math.max(rainModels, totalModels - rainModels) / totalModels * 100 : 0;
 
-    // 3. INTENSITY SCALE
-    const maxRain = Math.max(...precips.filter(p => p !== null && p !== undefined), 0);
-    let intensityLabel = '🟢 Leicht';
-    if (maxRain > 5) intensityLabel = '🔴 Starkregen';
-    else if (maxRain > 2) intensityLabel = '🟠 Kräftig';
-    else if (maxRain > 0.5) intensityLabel = '🟡 Moderat';
-    else if (maxRain > 0.1) intensityLabel = '🟢 Schwach';
-    else intensityLabel = 'Kein Regen';
+    let intensityLabel = 'Kein Regen';
+    if (maxRain > 5) intensityLabel = 'Starkregen';
+    else if (maxRain > 2) intensityLabel = 'Kräftig';
+    else if (maxRain > 0.5) intensityLabel = 'Moderat';
+    else if (maxRain > 0.1) intensityLabel = 'Leicht';
 
-    // 4. FIND RAIN PERIOD
-    let rainStart = null, rainEnd = null;
-    for (let i = 0; i < precips.length; i++) {
-        if ((precips[i] || 0) > 0.1) {
-            if (!rainStart) rainStart = i;
-            rainEnd = i;
-        }
-    }
-
-    // 5. SPATIAL PROBABILITY
-    // Wie viel % der Timeline hat Regen?
-    const rainyHours = precips.filter(p => (p || 0) > 0.1).length;
-    const spatialPercent = (rainyHours / precips.length * 100).toFixed(0);
-
-    // 6. RENDER SUMMARY
     document.getElementById('analysis-total-precip').textContent = `${totalPrecip.toFixed(1)} mm`;
     document.getElementById('analysis-rain-prob').textContent = `${Math.round(maxProb)}%`;
-    document.getElementById('analysis-consensus').textContent = `${Math.round(consensusPercent)}%`;
+    document.getElementById('analysis-consensus').textContent = totalModels > 0 ? `${Math.round(consensusPercent)}%` : '--';
     document.getElementById('analysis-intensity').textContent = intensityLabel;
 
-    // 7. RENDER TIMELINE
-    const maxPrecip = Math.max(...precips.filter(p => p !== null), 0.1);
-    const timelineHTML = times.map((timeStr, i) => {
-        const precip = precips[i] ?? 0;
-        const prob = probabilities[i] ?? 0;
-        const hour = parseInt(timeStr.slice(11, 13));
+    const content = document.getElementById('precipitation-analysis-content');
+    if (!content) return;
 
-        const barHeight = precip === 0 ? 4 : Math.max(4, (precip / maxPrecip) * 76);
-        let rainColor = '#a7d8ed';
-        if (precip > 0.5 && precip <= 1) rainColor = '#4ca3d4';
-        else if (precip > 1 && precip <= 2) rainColor = '#1e88d4';
-        else if (precip > 2 && precip <= 5) rainColor = '#0d47a1';
-        else if (precip > 5) rainColor = '#001a4d';
+    // SVG layout constants
+    const W = 640, H = 120, PL = 28, PR = 8, PT = 8, PB = 20;
+    const cW = W - PL - PR;
+    const bW = cW / 24;
 
-        return `
-            <div class="timeline-hour">
-                <div class="timeline-hour-time">${String(hour).padStart(2, '0')}:00</div>
-                <div class="rain-bar-container">
-                    <div class="rain-bar" style="height: ${barHeight}px; background: ${rainColor}"></div>
-                    ${precip > 0.1 ? `<div class="rain-amount">${precip.toFixed(1)}mm</div>` : ''}
-                </div>
-                ${prob > 0 ? `<div class="rain-prob">${Math.round(prob)}%</div>` : ''}
+    // --- Chart 1: Probability bars + model lines + spread band ---
+    let svgBars = '', svgSpread = '', svgLines = '', svgXAxis = '', svgYAxis = '', svgNow = '';
+
+    for (let i = 0; i < 24; i++) {
+        const p = probs[i] ?? 0;
+        const x = PL + i * bW;
+        const bh = (p / 100) * (H - PT - PB);
+        const y = H - PB - bh;
+        const col = p >= 60 ? '#3b82f6' : p >= 30 ? '#60a5fa' : '#93c5fd';
+        if (i === nowHour) {
+            svgBars += `<rect x="${x+1}" y="${PT}" width="${bW-2}" height="${H-PT-PB}" rx="2" fill="rgba(245,158,11,0.1)"/>`;
+        }
+        svgBars += `<rect x="${x+1}" y="${y}" width="${bW-2}" height="${bh || 2}" rx="2" fill="${col}" opacity="${i === nowHour ? 1 : 0.7}"/>`;
+    }
+
+    if (enData.length >= 2) {
+        const topPts = [], botPts = [];
+        for (let i = 0; i < 24; i++) {
+            const cx = PL + (i + 0.5) * bW;
+            topPts.push([cx, H - PB - (hourSpread[i].max / 100) * (H - PT - PB)]);
+            botPts.push([cx, H - PB - (hourSpread[i].min / 100) * (H - PT - PB)]);
+        }
+        const topD = topPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+        const botD = [...botPts].reverse().map(p => `L${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+        svgSpread = `<path d="${topD} ${botD} Z" fill="rgba(148,163,184,0.18)"/>`;
+
+        enData.forEach(e => {
+            const pts = e.probs.map((p, i) =>
+                `${(PL + (i + 0.5) * bW).toFixed(1)},${(H - PB - ((p ?? 0) / 100) * (H - PT - PB)).toFixed(1)}`
+            ).join(' ');
+            svgLines += `<polyline points="${pts}" fill="none" stroke="${e.color}" stroke-width="1.5" stroke-linecap="round" opacity="0.9"/>`;
+        });
+    }
+
+    for (let v of [0, 50, 100]) {
+        const y = H - PB - (v / 100) * (H - PT - PB);
+        svgYAxis += `<text x="${PL-3}" y="${y+3}" text-anchor="end" fill="var(--text-3)" font-size="9">${v}%</text>`;
+        svgYAxis += `<line x1="${PL}" y1="${y}" x2="${W-PR}" y2="${y}" stroke="var(--card-b)" stroke-width="0.5"/>`;
+    }
+    for (let i = 0; i < 24; i += 4) {
+        const x = PL + (i + 0.5) * bW;
+        const h = times[i] ? parseInt(times[i].slice(11, 13)) : i;
+        svgXAxis += `<text x="${x.toFixed(1)}" y="${H-4}" text-anchor="middle" fill="var(--text-3)" font-size="9">${String(h).padStart(2,'0')}</text>`;
+    }
+    if (nowHour >= 0) {
+        const nx = PL + (nowHour + 0.5) * bW;
+        svgNow = `<line x1="${nx.toFixed(1)}" y1="${PT}" x2="${nx.toFixed(1)}" y2="${H-PB}" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.8"/>`;
+    }
+    const probSVG = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="overflow:visible;font-family:-apple-system,system-ui,sans-serif">${svgYAxis}${svgSpread}${svgBars}${svgLines}${svgXAxis}${svgNow}</svg>`;
+
+    // --- Chart 2: Divergence bars ---
+    let divBars = '', divX = '';
+    const maxSpread = Math.max(...hourSpread.map(s => s.spread), 1);
+    for (let i = 0; i < 24; i++) {
+        const s = hourSpread[i].spread;
+        const x = PL + i * bW;
+        const bh = Math.max(2, (s / maxSpread) * 44);
+        const col = s > 25 ? '#f87171' : s > 12 ? '#fb923c' : '#4ade80';
+        divBars += `<rect x="${x+1}" y="${56-bh}" width="${bW-2}" height="${bh}" rx="1" fill="${col}" opacity="0.85"/>`;
+    }
+    for (let i = 0; i < 24; i += 4) {
+        const x = PL + (i + 0.5) * bW;
+        const h = times[i] ? parseInt(times[i].slice(11, 13)) : i;
+        divX += `<text x="${x.toFixed(1)}" y="70" text-anchor="middle" fill="var(--text-3)" font-size="9">${String(h).padStart(2,'0')}</text>`;
+    }
+    const divNow = nowHour >= 0 ? `<line x1="${(PL+(nowHour+0.5)*bW).toFixed(1)}" y1="10" x2="${(PL+(nowHour+0.5)*bW).toFixed(1)}" y2="56" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3,2" opacity="0.8"/>` : '';
+    const divSVG = `<svg viewBox="0 0 ${W} 74" width="100%" height="74" style="overflow:visible;font-family:-apple-system,system-ui,sans-serif"><text x="${PL-3}" y="59" text-anchor="end" fill="var(--text-3)" font-size="9">0%</text><line x1="${PL}" y1="56" x2="${W-PR}" y2="56" stroke="var(--card-b)" stroke-width="0.5"/>${divBars}${divX}${divNow}</svg>`;
+
+    // --- Model comparison table ---
+    let modelRows = enData.length > 0
+        ? enData.map(e => {
+            const maxP = Math.max(...e.probs.filter(p => p != null), 0);
+            const tot = e.precips.reduce((a, b) => (a||0)+(b||0), 0);
+            return `<div class="pa-model-row">
+                <div class="pa-model-name" style="color:${e.color}">${e.label}</div>
+                <div class="pa-model-bar-wrap"><div class="pa-model-bar" style="width:${Math.round(maxP)}%;background:${e.color}"></div></div>
+                <div class="pa-model-pct">${Math.round(maxP)}%</div>
+                <div class="pa-model-total">${tot.toFixed(1)} mm</div>
+            </div>`;
+        }).join('')
+        : '<div style="color:var(--text-3);font-size:0.8rem">Ensemble-Daten werden geladen…</div>';
+
+    // --- Rain periods ---
+    let periods = [], inR = false, rS = 0;
+    for (let i = 0; i < 24; i++) {
+        const rainy = (probs[i] ?? 0) >= 40;
+        if (rainy && !inR) { inR = true; rS = i; }
+        else if (!rainy && inR) { inR = false; periods.push([rS, i - 1]); }
+    }
+    if (inR) periods.push([rS, 23]);
+
+    let periodsHTML = periods.length === 0
+        ? '<span style="color:var(--text-3);font-size:0.85rem">Kein Regen mit ≥40% Wahrscheinlichkeit erwartet</span>'
+        : periods.map(([s, e]) => {
+            const sH = times[s] ? parseInt(times[s].slice(11, 13)) : s;
+            const eH = times[e] ? parseInt(times[e].slice(11, 13)) : e;
+            const maxP = Math.max(...probs.slice(s, e+1).filter(p => p != null), 0);
+            const avgPr = precips.slice(s, e+1).reduce((a,b)=>(a||0)+(b||0),0)/(e-s+1);
+            const intens = avgPr > 2 ? 'stark' : avgPr > 0.5 ? 'mittel' : 'schwach';
+            return `<div class="pa-rain-period">
+                <span class="pa-period-time">${String(sH).padStart(2,'0')}:00 – ${String(eH).padStart(2,'0')}:59</span>
+                <span class="pa-period-prob">${Math.round(maxP)}%</span>
+                <span class="pa-period-intens">${intens}</span>
+            </div>`;
+        }).join('');
+
+    // --- Spatial grid (current weather codes from 5×5 grid) ---
+    const RAIN_CODES = new Set([51,53,55,61,63,65,71,73,75,77,80,81,82,85,86,95,96,99]);
+    let spatialHTML = '';
+    if (cachedGridData && cachedGridData.length > 0) {
+        const sorted = [...cachedGridData].sort((a, b) => b.lat - a.lat || a.lon - b.lon);
+        let rainCount = 0;
+        const dots = sorted.map(pt => {
+            const hasRain = RAIN_CODES.has(pt.code ?? 0);
+            if (hasRain) rainCount++;
+            return `<div class="pa-dot ${hasRain ? 'pa-dot-rain' : 'pa-dot-dry'}" title="Wetterkode ${pt.code ?? 0}"></div>`;
+        }).join('');
+        const pct = Math.round(rainCount / sorted.length * 100);
+        spatialHTML = `<div class="pa-spatial-grid">${dots}</div>
+            <div class="pa-spatial-label">${pct}% der umliegenden Fläche (${rainCount}/${sorted.length} Messpunkte) mit Niederschlag</div>`;
+    } else {
+        spatialHTML = '<div style="color:var(--text-3);font-size:0.8rem">Räumliche Daten werden geladen…</div>';
+    }
+
+    // --- Legend ---
+    const legendHTML = enData.length >= 2 ? `<div class="pa-legend">
+        ${enData.map(e => `<div class="pa-leg-item"><div class="pa-leg-dot" style="background:${e.color}"></div>${e.label}</div>`).join('')}
+        <div class="pa-leg-item"><div class="pa-leg-spread-box"></div>Unsicherheit</div>
+    </div>` : '';
+
+    // --- Assemble ---
+    const validTemps = temps.filter(t => t != null);
+    const maxWind = Math.max(...winds.filter(w => w != null), 0);
+    const windDesc = maxWind > 40 ? 'stürmisch' : maxWind > 25 ? 'windig' : maxWind > 10 ? 'mäßig' : 'schwach';
+
+    content.innerHTML = `<div class="pa-inner">
+        <div class="pa-section">
+            <div class="pa-section-header">
+                <span class="pa-section-title">Wahrscheinlichkeit nach Modell</span>
+                ${legendHTML}
             </div>
-        `;
-    }).join('');
+            ${probSVG}
+        </div>
+        ${enData.length >= 2 ? `
+        <div class="pa-section">
+            <div class="pa-section-header">
+                <span class="pa-section-title">Modell-Divergenz</span>
+                <span class="pa-section-sub">
+                    <span style="color:#4ade80">●</span> &lt;12%
+                    <span style="color:#fb923c">●</span> 12–25%
+                    <span style="color:#f87171">●</span> &gt;25%
+                </span>
+            </div>
+            ${divSVG}
+        </div>
+        <div class="pa-section">
+            <div class="pa-section-header"><span class="pa-section-title">Modell-Vergleich</span></div>
+            <div class="pa-model-table">${modelRows}</div>
+        </div>` : ''}
+        <div class="pa-section">
+            <div class="pa-section-header"><span class="pa-section-title">Regenperioden ≥ 40%</span></div>
+            <div class="pa-rain-periods">${periodsHTML}</div>
+        </div>
+        <div class="pa-section">
+            <div class="pa-section-header"><span class="pa-section-title">Räumliche Verteilung (aktuell)</span></div>
+            <div class="pa-spatial">${spatialHTML}</div>
+        </div>
+        <div class="pa-section">
+            <div class="pa-section-header"><span class="pa-section-title">Weitere Details</span></div>
+            <div class="pa-extra-grid">
+                <div class="pa-extra-row"><span class="pa-extra-label">Temperaturspanne</span><span class="pa-extra-val">${validTemps.length ? Math.min(...validTemps).toFixed(0) : '--'}–${validTemps.length ? Math.max(...validTemps).toFixed(0) : '--'}°C</span></div>
+                <div class="pa-extra-row"><span class="pa-extra-label">Wind max.</span><span class="pa-extra-val">${maxWind.toFixed(0)} km/h (${windDesc})</span></div>
+            </div>
+        </div>
+    </div>`;
 
-    document.getElementById('precipitation-timeline').innerHTML = timelineHTML || '<div style="padding:1rem;color:var(--text-3)">Keine Daten</div>';
-
-    // 8. RENDER DETAILS
-    // Zeitspanne
-    if (rainStart !== null) {
-        const startTime = new Date(times[rainStart]).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-        const endTime = new Date(times[rainEnd]).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-        const duration = rainEnd - rainStart + 1;
-        document.getElementById('analysis-timespan').textContent = `${startTime} - ${endTime} (${duration}h)`;
-    } else {
-        document.getElementById('analysis-timespan').textContent = 'Kein Niederschlag erwartet';
-    }
-
-    // Modellübereinstimmung
-    if (totalModels > 0) {
-        document.getElementById('analysis-model-agreement').textContent = `${rainModels} Läufe mit Regen / ${totalModels} insgesamt (${Math.round(rainModels/totalModels*100)}%)`;
-    } else {
-        document.getElementById('analysis-model-agreement').textContent = 'Ensemble-Daten nicht verfügbar';
-    }
-
-    // Räumliche Verteilung
-    document.getElementById('analysis-spatial').textContent = `${spatialPercent}% der nächsten 24h mit Niederschlag (${rainyHours}/24h)`;
-
-    // Intensität Detailliert
-    if (maxRain > 0) {
-        let description = '';
-        if (maxRain > 5) description = `Starkregen: ${maxRain.toFixed(1)} mm/h - Warnung vor Überflutungen möglich`;
-        else if (maxRain > 2) description = `Kräftiger Regen: ${maxRain.toFixed(1)} mm/h - Achten Sie auf Straßen`;
-        else if (maxRain > 0.5) description = `Moderater Regen: ${maxRain.toFixed(1)} mm/h - Schirm empfohlen`;
-        else description = `Leichter Regen: ${maxRain.toFixed(1)} mm/h`;
-        document.getElementById('analysis-intensity-detail').textContent = description;
-    } else {
-        document.getElementById('analysis-intensity-detail').textContent = 'Trocken - Kein Niederschlag erwartet';
-    }
-
-    // Temperatur
-    document.getElementById('analysis-temp').textContent = `${minTemp.toFixed(0)}° bis ${maxTemp.toFixed(0)}°C`;
-
-    // Bedeckung
-    const cloudDesc = maxCloud > 80 ? `Stark bewölkt (${Math.round(maxCloud)}%)` : 
-                     maxCloud > 50 ? `Teilweise bewölkt (${Math.round(maxCloud)}%)` :
-                     maxCloud > 20 ? `Teils heiter (${Math.round(maxCloud)}%)` :
-                     `Heiter (${Math.round(maxCloud)}%)`;
-    document.getElementById('analysis-clouds').textContent = cloudDesc;
-
-    // Wind
-    const windDesc = maxWind > 40 ? '(Stürmisch)' : maxWind > 25 ? '(Windig)' : maxWind > 10 ? '(Mäßig)' : '(Schwach)';
-    document.getElementById('analysis-wind').textContent = `${maxWind.toFixed(0)} km/h ${windDesc}`;
-
-    // 9. RENDER ICONS
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons({ nodes: [widget] });
-    }
-
-    // 10. SETUP TOGGLE
     const toggleBtn = document.getElementById('precipitation-analysis-toggle');
     if (toggleBtn && !toggleBtn.dataset.listenerSet) {
         toggleBtn.addEventListener('click', e => {
@@ -793,6 +879,7 @@ function displayPrecipitationAnalysis(data, ensemble, dayOffset = 0) {
         });
         toggleBtn.dataset.listenerSet = 'true';
     }
+    if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [widget] });
 }
 
 // ─── Display: Niederschlags-Widget ────────────────────────────────────────────

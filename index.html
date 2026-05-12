@@ -1605,7 +1605,7 @@
         }
 
         .precipitation-analysis-widget.expanded .precipitation-analysis-content {
-            max-height: 1200px;
+            max-height: 2400px;
         }
 
         .precipitation-timeline-section,
@@ -1715,6 +1715,42 @@
             color: var(--text-2);
             flex: 1;
         }
+
+        /* ── Precipitation Analysis (redesign) ── */
+        .pa-inner { padding: 0 0 0.5rem; }
+        .pa-section { padding: 1rem 1.25rem; border-top: 1px solid var(--card-b); }
+        .pa-section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;
+        }
+        .pa-section-title { font-size: 0.78rem; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; }
+        .pa-section-sub { font-size: 0.75rem; color: var(--text-3); display: flex; gap: 0.4rem; align-items: center; }
+        .pa-legend { display: flex; gap: 0.65rem; flex-wrap: wrap; }
+        .pa-leg-item { display: flex; align-items: center; gap: 0.3rem; font-size: 0.72rem; color: var(--text-3); }
+        .pa-leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .pa-leg-spread-box { width: 18px; height: 8px; border-radius: 2px; background: rgba(148,163,184,0.25); flex-shrink: 0; }
+        .pa-model-table { display: flex; flex-direction: column; gap: 0.55rem; }
+        .pa-model-row { display: grid; grid-template-columns: 62px 1fr 40px 52px; align-items: center; gap: 0.5rem; }
+        .pa-model-name { font-size: 0.78rem; font-weight: 600; }
+        .pa-model-bar-wrap { background: var(--card-b); border-radius: 999px; height: 6px; overflow: hidden; }
+        .pa-model-bar { height: 100%; border-radius: 999px; min-width: 2px; transition: width 0.5s; }
+        .pa-model-pct { font-size: 0.78rem; font-weight: 600; color: var(--text); text-align: right; }
+        .pa-model-total { font-size: 0.72rem; color: var(--text-3); text-align: right; }
+        .pa-rain-periods { display: flex; flex-direction: column; gap: 0.4rem; }
+        .pa-rain-period { display: flex; align-items: center; gap: 0.75rem; font-size: 0.82rem; padding: 0.4rem 0.65rem; background: rgba(96,165,250,0.08); border-radius: 6px; border-left: 3px solid #60a5fa; }
+        .pa-period-time { font-weight: 600; color: var(--text); flex-shrink: 0; }
+        .pa-period-prob { font-weight: 700; color: #60a5fa; flex-shrink: 0; min-width: 36px; }
+        .pa-period-intens { font-size: 0.75rem; color: var(--text-3); }
+        .pa-spatial-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; width: 115px; margin-bottom: 0.5rem; }
+        .pa-dot { width: 18px; height: 18px; border-radius: 4px; }
+        .pa-dot-rain { background: #3b82f6; }
+        .pa-dot-dry { background: var(--card-b); }
+        .pa-spatial-label { font-size: 0.78rem; color: var(--text-2); }
+        .pa-extra-grid { display: flex; flex-direction: column; gap: 0.4rem; }
+        .pa-extra-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; padding: 0.25rem 0; border-bottom: 1px solid var(--card-b); }
+        .pa-extra-row:last-child { border-bottom: none; }
+        .pa-extra-label { color: var(--text-3); }
+        .pa-extra-val { font-weight: 600; color: var(--text); }
 
         /* ── Responsive ── */
         @media (max-width: 500px) {
@@ -1880,53 +1916,7 @@
         </div>
 
         <div class="precipitation-analysis-content" id="precipitation-analysis-content">
-            <!-- Timeline -->
-            <div class="precipitation-timeline-section">
-                <h4>⏰ Stundenweise Niederschlag</h4>
-                <div class="precipitation-timeline" id="precipitation-timeline">
-                    <!-- Timeline hours injected here -->
-                </div>
-            </div>
-
-            <!-- Detailed Analysis -->
-            <div class="precipitation-details-section">
-                <h4>📊 Detaillierte Analyse</h4>
-                
-                <div class="detail-row">
-                    <span class="detail-label">📅 Zeitspanne:</span>
-                    <span class="detail-value" id="analysis-timespan">Keine Niederschläge erwartet</span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">🎯 Modellübereinstimmung:</span>
-                    <span class="detail-value" id="analysis-model-agreement">-- Läufe mit Regen / -- insgesamt</span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">📍 Räumliche Verteilung:</span>
-                    <span class="detail-value" id="analysis-spatial">Berechnung lädt…</span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">💪 Intensität:</span>
-                    <span class="detail-value" id="analysis-intensity-detail">--</span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">🌡️ Temperatur:</span>
-                    <span class="detail-value" id="analysis-temp">-- bis --°C</span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">☁️ Bedeckung:</span>
-                    <span class="detail-value" id="analysis-clouds">--%</span>
-                </div>
-
-                <div class="detail-row">
-                    <span class="detail-label">💨 Wind:</span>
-                    <span class="detail-value" id="analysis-wind">-- km/h</span>
-                </div>
-            </div>
+            <!-- populated dynamically by displayPrecipitationAnalysis() -->
         </div>
     </div>
 
