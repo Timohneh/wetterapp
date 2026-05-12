@@ -1323,6 +1323,7 @@ class SettingsManager {
     applyTheme(theme) {
         const isDark = theme === 'dark';
         const root = document.documentElement;
+        root.setAttribute('data-theme', theme);
 
         if (isDark) {
             root.style.setProperty('--bg', '#080c14');
@@ -1330,20 +1331,22 @@ class SettingsManager {
             root.style.setProperty('--card', 'rgba(255,255,255,0.034)');
             root.style.setProperty('--card-b', 'rgba(255,255,255,0.07)');
             root.style.setProperty('--card-hov', 'rgba(255,255,255,0.06)');
+            root.style.setProperty('--header-bg', 'rgba(8,12,20,0.85)');
             root.style.setProperty('--text', '#f1f5f9');
             root.style.setProperty('--text-2', '#94a3b8');
             root.style.setProperty('--text-3', '#475569');
             document.body.style.backgroundColor = '#080c14';
         } else {
-            root.style.setProperty('--bg', '#f8f9fa');
-            root.style.setProperty('--surface', '#ffffff');
-            root.style.setProperty('--card', 'rgba(0,0,0,0.04)');
-            root.style.setProperty('--card-b', 'rgba(0,0,0,0.08)');
-            root.style.setProperty('--card-hov', 'rgba(0,0,0,0.06)');
-            root.style.setProperty('--text', '#1e293b');
-            root.style.setProperty('--text-2', '#64748b');
-            root.style.setProperty('--text-3', '#94a3b8');
-            document.body.style.backgroundColor = '#f8f9fa';
+            root.style.setProperty('--bg', '#ffffff');
+            root.style.setProperty('--surface', '#f1f5f9');
+            root.style.setProperty('--card', '#f9fafb');
+            root.style.setProperty('--card-b', '#e2e8f0');
+            root.style.setProperty('--card-hov', '#f3f4f6');
+            root.style.setProperty('--header-bg', 'rgba(255,255,255,0.92)');
+            root.style.setProperty('--text', '#0f172a');
+            root.style.setProperty('--text-2', '#475569');
+            root.style.setProperty('--text-3', '#64748b');
+            document.body.style.backgroundColor = '#ffffff';
         }
     }
 

@@ -23,6 +23,7 @@
             --card:      rgba(255,255,255,0.034);
             --card-b:    rgba(255,255,255,0.07);
             --card-hov:  rgba(255,255,255,0.06);
+            --header-bg: rgba(8,12,20,0.85);
             --accent:    #f59e0b;
             --accent-lo: rgba(245,158,11,0.12);
             --cool:      #60a5fa;
@@ -53,7 +54,7 @@
             position: sticky;
             top: 0;
             z-index: 50;
-            background: rgba(8,12,20,0.85);
+            background: var(--header-bg);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--card-b);
@@ -302,6 +303,43 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 0.6rem;
+        }
+
+        /* ── Light Mode Styles ── */
+        html[data-theme="light"] .hourly-scroll {
+            scrollbar-color: rgba(100,116,139,0.3) transparent;
+        }
+
+        html[data-theme="light"] .hourly-scroll::-webkit-scrollbar-thumb {
+            background: rgba(100,116,139,0.3);
+        }
+
+        html[data-theme="light"] .daily-scroll {
+            scrollbar-color: rgba(100,116,139,0.3) transparent;
+        }
+
+        html[data-theme="light"] .daily-scroll::-webkit-scrollbar-thumb {
+            background: rgba(100,116,139,0.3);
+        }
+
+        html[data-theme="light"] .chart-outer {
+            scrollbar-color: rgba(100,116,139,0.25) transparent;
+        }
+
+        html[data-theme="light"] .chart-outer::-webkit-scrollbar-thumb {
+            background: rgba(100,116,139,0.25);
+        }
+
+        html[data-theme="light"] .precipitation-timeline {
+            scrollbar-color: rgba(100,116,139,0.3) transparent;
+        }
+
+        html[data-theme="light"] .precipitation-timeline::-webkit-scrollbar-thumb {
+            background: rgba(100,116,139,0.3);
+        }
+
+        html[data-theme="light"] .settings-content::-webkit-scrollbar-thumb {
+            background: rgba(100,116,139,0.3);
         }
 
         @media (max-width: 500px) {
@@ -1490,6 +1528,25 @@
                 <div class="precipitation-timeline" id="precipitation-timeline">
                     <!-- Timeline hours injected here -->
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Weather Report Widget (expandable text report) -->
+    <div class="weather-report-widget card" id="weather-report-widget">
+        <div class="weather-report-header">
+            <div class="weather-report-title">
+                <i data-lucide="file-text"></i>
+                <span>Wetterbericht</span>
+            </div>
+            <button class="weather-report-toggle" id="weather-report-toggle" title="Ausklappen">
+                <i data-lucide="chevron-down"></i>
+            </button>
+        </div>
+
+        <div class="weather-report-content" id="weather-report-content">
+            <div class="weather-report-text" id="weather-report-text">
+                <!-- Report text injected here -->
             </div>
         </div>
     </div>
