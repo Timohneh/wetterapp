@@ -338,6 +338,7 @@ async function fetchWeather() {
 
         displayWeather(merged, modelArr);
         displayRainDetail(longRange);
+        displayPrecipitationWidget(longRange, 0, 12);
         displayHourlyForecast(longRange, 0, 'hourly-forecast', null, null);
         displayDailyForecast(longRange, null);
         displayModelComparison(modelArr);
@@ -624,6 +625,87 @@ function displayRainDetail(longRange) {
     document.getElementById('rain-next-label').textContent  = nextRainLabel;
 }
 
+// ─── Display: Niederschlags-Widget ────────────────────────────────────────────
+
+function displayPrecipitationWidget(data, dayOffset = 0, dayCount = 12) {
+    const widget = document.getElementById('precipitation-widget');
+    if (!widget) return;
+
+    // Check if widget is enabled in settings
+    const showWidget = settingsManager?.displayDetails?.shows_precipitation_widget ?? true;
+    widget.style.display = showWidget ? '' : 'none';
+
+    if (!showWidget || !data?.hourly) return;
+
+    const start = dayOffset * 24;
+    const end = Math.min(start + dayCount, (data.hourly.precipitation ?? []).length);
+    
+    const precips = (data.hourly.precipitation ?? []).slice(start, end);
+    const probs = (data.hourly.precipitation_probability ?? []).slice(start, end);
+    const times = (data.hourly.time ?? []).slice(start, end);
+
+    // Berechne Summe und Max
+    const totalPrecip = precips.reduce((sum, p) => sum + (p ?? 0), 0);
+    const maxProb = Math.max(...(probs.map(p => p ?? 0)));
+
+    // Update Header Stats
+    document.getElementById('precip-total').textContent = `${totalPrecip.toFixed(1)} mm`;
+    document.getElementById('precip-risk').textContent = `${Math.round(maxProb)}%`;
+
+    // Find max precipitation for color scaling
+    const maxPrecip = Math.max(...(precips.map(p => p ?? 0)), 0.1);
+
+    // Generate Timeline HTML
+    const timelineHTML = times.map((timeStr, i) => {
+        const precip = precips[i] ?? 0;
+        const prob = probs[i] ?? 0;
+        const hour = parseInt(timeStr.slice(11, 13));
+
+        // Berechne Bar-Höhe proportional zu Niederschlag
+        const barHeight = precip === 0 ? 4 : Math.max(4, (precip / maxPrecip) * 76);
+
+        // Farbcodierung nach Intensität
+        let rainColor = '#a7d8ed'; // 0-0.5mm hellblau
+        if (precip > 0.5 && precip <= 1) rainColor = '#4ca3d4'; // hellblau
+        else if (precip > 1 && precip <= 2) rainColor = '#1e88d4'; // mittelblau
+        else if (precip > 2 && precip <= 5) rainColor = '#0d47a1'; // dunkelblau
+        else if (precip > 5) rainColor = '#001a4d'; // sehr dunkelblau
+
+        return `
+            <div class="timeline-hour">
+                <div class="timeline-hour-time">${String(hour).padStart(2, '0')}:00</div>
+                <div class="rain-bar-container">
+                    <div class="rain-bar" style="height: ${barHeight}px; --rain-color: ${rainColor}"></div>
+                    ${precip > 0.1 ? `<div class="rain-amount">${precip.toFixed(1)}mm</div>` : ''}
+                </div>
+                ${prob > 0 ? `<div class="rain-prob">${Math.round(prob)}%</div>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    const timeline = document.getElementById('precipitation-timeline');
+    if (timelineHTML.trim()) {
+        timeline.innerHTML = timelineHTML;
+    } else {
+        timeline.innerHTML = '<div class="precipitation-empty">Keine Niederschlagsdaten verfügbar</div>';
+    }
+
+    // Render Icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons({ nodes: [timeline] });
+    }
+
+    // Setup Toggle Event (nur einmal)
+    const toggleBtn = document.getElementById('precipitation-toggle');
+    if (toggleBtn && !toggleBtn.dataset.listenerSet) {
+        toggleBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            widget.classList.toggle('expanded');
+        });
+        toggleBtn.dataset.listenerSet = 'true';
+    }
+}
+
 // ─── Display: Grafischer Stundenchart ─────────────────────────────────────────
 
 function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) {
@@ -860,6 +942,7 @@ function showDayDetail(dayIndex) {
     document.getElementById('day-detail-title').textContent = `${label} · ${maxT}° / ${minT}°`;
     displayHourlyForecast(cachedLongRange, dayIndex, 'day-detail-hourly',
         dayIndex <= 1 ? cachedEnsemble : null, null);
+    displayPrecipitationWidget(cachedLongRange, dayIndex, 24);
 
     const panel = document.getElementById('day-detail-panel');
     panel.classList.remove('hidden');
@@ -1140,7 +1223,8 @@ const DEFAULT_DISPLAY_DETAILS = {
     shows_humidity: true,
     shows_precipitation: true,
     shows_visibility: true,
-    shows_pressure: true
+    shows_pressure: true,
+    shows_precipitation_widget: true
 };
 
 class SettingsManager {
@@ -1184,14 +1268,22 @@ class SettingsManager {
             'show-humidity': 'shows_humidity',
             'show-precipitation': 'shows_precipitation',
             'show-visibility': 'shows_visibility',
-            'show-pressure': 'shows_pressure'
+            'show-pressure': 'shows_pressure',
+            'show-precipitation-widget': 'shows_precipitation_widget'
         };
 
         Object.entries(detailCheckboxes).forEach(([checkboxId, key]) => {
             const checkbox = document.getElementById(checkboxId);
             if (checkbox) {
                 checkbox.checked = this.displayDetails[key];
-                checkbox.addEventListener('change', e => this.setDisplayDetail(key, e.target.checked));
+                checkbox.addEventListener('change', e => {
+                    this.setDisplayDetail(key, e.target.checked);
+                    // Sofortiges Update für show-precipitation-widget
+                    if (checkboxId === 'show-precipitation-widget') {
+                        const widget = document.getElementById('precipitation-widget');
+                        if (widget) widget.style.display = e.target.checked ? '' : 'none';
+                    }
+                });
             }
         });
 

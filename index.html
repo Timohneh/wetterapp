@@ -1161,6 +1161,179 @@
             margin: 0;
         }
 
+        /* ── Precipitation Widget ── */
+        .precipitation-widget {
+            overflow: hidden;
+        }
+
+        .precipitation-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            cursor: pointer;
+            padding: 1.25rem;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .precipitation-widget:hover .precipitation-header {
+            background: var(--card-hov);
+        }
+
+        .precipitation-stats {
+            display: flex;
+            gap: 1.5rem;
+            flex: 1;
+        }
+
+        .precipitation-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .precipitation-stat svg {
+            color: var(--accent);
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .precipitation-label {
+            font-size: 0.7rem;
+            color: var(--text-3);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.2rem;
+        }
+
+        .precipitation-total,
+        .precipitation-risk {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .precipitation-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border: 1px solid var(--card-b);
+            border-radius: 8px;
+            background: var(--card);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.3s;
+            flex-shrink: 0;
+        }
+
+        .precipitation-toggle:hover {
+            background: var(--card-hov);
+            border-color: var(--accent);
+        }
+
+        .precipitation-toggle svg {
+            width: 18px;
+            height: 18px;
+            transition: transform 0.3s;
+        }
+
+        .precipitation-widget.expanded .precipitation-toggle svg {
+            transform: rotate(180deg);
+        }
+
+        .precipitation-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .precipitation-widget.expanded .precipitation-content {
+            max-height: 500px;
+        }
+
+        .precipitation-timeline-container {
+            padding: 0 1.25rem 1.25rem;
+            border-top: 1px solid var(--card-b);
+        }
+
+        .precipitation-timeline {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            padding: 1rem 0;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        .precipitation-timeline::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .precipitation-timeline::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+        }
+
+        .timeline-hour {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 48px;
+            flex-shrink: 0;
+        }
+
+        .timeline-hour-time {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .rain-bar-container {
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .rain-bar {
+            width: 8px;
+            background: var(--rain-color, #60a5fa);
+            border-radius: 2px 2px 0 0;
+            transition: all 0.2s;
+            min-height: 2px;
+        }
+
+        .rain-bar:hover {
+            opacity: 0.8;
+            filter: brightness(1.2);
+        }
+
+        .rain-amount {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-top: 0.4rem;
+        }
+
+        .rain-prob {
+            font-size: 0.6rem;
+            color: var(--text-3);
+            margin-top: 0.2rem;
+        }
+
+        .precipitation-empty {
+            padding: 1.5rem 1.25rem;
+            text-align: center;
+            color: var(--text-3);
+            font-size: 0.85rem;
+        }
+
         /* ── Responsive ── */
         @media (max-width: 500px) {
             .settings-panel {
@@ -1284,6 +1457,39 @@
             <div>
                 <div class="stat-label">Taupunkt</div>
                 <div class="stat-value" id="dewpoint-stat">--°C</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Precipitation Details Widget (expandable) -->
+    <div class="precipitation-widget card" id="precipitation-widget">
+        <div class="precipitation-header">
+            <div class="precipitation-stats">
+                <div class="precipitation-stat">
+                    <i data-lucide="cloud-rain"></i>
+                    <div>
+                        <div class="precipitation-label">Niederschlag</div>
+                        <div class="precipitation-total" id="precip-total">-- mm</div>
+                    </div>
+                </div>
+                <div class="precipitation-stat">
+                    <i data-lucide="percent"></i>
+                    <div>
+                        <div class="precipitation-label">Max Risiko</div>
+                        <div class="precipitation-risk" id="precip-risk">--%</div>
+                    </div>
+                </div>
+            </div>
+            <button class="precipitation-toggle" id="precipitation-toggle" title="Ausklappen">
+                <i data-lucide="chevron-down"></i>
+            </button>
+        </div>
+
+        <div class="precipitation-content" id="precipitation-content">
+            <div class="precipitation-timeline-container">
+                <div class="precipitation-timeline" id="precipitation-timeline">
+                    <!-- Timeline hours injected here -->
+                </div>
             </div>
         </div>
     </div>
@@ -1497,6 +1703,12 @@
                         <label class="checkbox-label">
                             <input type="checkbox" id="show-pressure" class="detail-checkbox" checked>
                             <span>Luftdruck</span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-precipitation-widget" class="detail-checkbox" checked>
+                            <span>Niederschlag-Timeline anzeigen</span>
                         </label>
                     </div>
                 </div>
