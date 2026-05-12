@@ -720,6 +720,21 @@ function displayPrecipitationAnalysis(data, ensemble, dayOffset = 0) {
     widget.style.display = showWidget ? '' : 'none';
     if (!showWidget || !data?.hourly) return;
 
+    // Update widget title to reflect selected day
+    const titleEl = widget.querySelector('.precipitation-analysis-title span');
+    if (titleEl) {
+        if (dayOffset === 0) {
+            titleEl.textContent = 'Niederschlag & Wetter heute';
+        } else if (dayOffset === 1) {
+            titleEl.textContent = 'Niederschlag & Wetter morgen';
+        } else {
+            const d = new Date();
+            d.setDate(d.getDate() + dayOffset);
+            const label = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'short' });
+            titleEl.textContent = `Niederschlag & Wetter – ${label}`;
+        }
+    }
+
     const start = dayOffset * 24;
     const end = start + 24;
     const nowHour = dayOffset === 0 ? new Date().getHours() : -1;
@@ -1864,11 +1879,14 @@ class SettingsManager {
             document.body.style.backgroundImage  = 'none';
         }
 
-        // Swap map base tiles
+        // Swap map base tiles and force redraw
         const tileUrl = isDark
             ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_matter/{z}/{x}/{y}{r}.png'
             : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-        if (baseTileLayer) baseTileLayer.setUrl(tileUrl);
+        if (baseTileLayer) {
+            baseTileLayer.setUrl(tileUrl);
+            baseTileLayer.redraw();
+        }
 
         // Update PWA theme color
         document.querySelector('meta[name="theme-color"]')
