@@ -135,7 +135,7 @@ function initMap() {
     const isDark = (localStorage.getItem('weather_theme') || 'dark') === 'dark';
     baseTileLayer = L.tileLayer(
         isDark
-            ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_matter/{z}/{x}/{y}{r}.png'
+            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
             : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
         { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 18 }
     ).addTo(map);
@@ -1881,7 +1881,7 @@ class SettingsManager {
 
         // Swap map base tiles and force redraw
         const tileUrl = isDark
-            ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_matter/{z}/{x}/{y}{r}.png'
+            ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
             : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
         if (baseTileLayer) {
             baseTileLayer.setUrl(tileUrl);
