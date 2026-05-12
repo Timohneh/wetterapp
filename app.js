@@ -337,8 +337,7 @@ async function fetchWeather() {
         const merged   = mergeModels(modelArr);
 
         displayWeather(merged, modelArr);
-        displayRainDetail(longRange);
-        displayPrecipitationWidget(longRange, 0, 12);
+        displayPrecipitationAnalysis(longRange, null, 0);
         displayHourlyForecast(longRange, 0, 'hourly-forecast', null, null);
         displayDailyForecast(longRange, null);
         displayModelComparison(modelArr);
@@ -354,7 +353,10 @@ async function fetchWeather() {
             cachedEnsemble = ensemble;
             if (gridData) cachedGridData = gridData;
 
-            if (ensemble)  displayHourlyForecast(longRange, 0, 'hourly-forecast', ensemble, null);
+            if (ensemble) {
+                displayHourlyForecast(longRange, 0, 'hourly-forecast', ensemble, null);
+                displayPrecipitationAnalysis(longRange, ensemble, 0);
+            }
             if (dailyEns)  displayDailyForecast(longRange, dailyEns);
             if (gridData && weatherGridLayer) weatherGridLayer.setData(gridData);
         }).catch(e => console.warn('Tier-2 fetch failed:', e));
@@ -625,6 +627,174 @@ function displayRainDetail(longRange) {
     document.getElementById('rain-next-label').textContent  = nextRainLabel;
 }
 
+// ─── Precipitation Analysis Widget (Konsolidiert) ─────────────────────────────
+
+function displayPrecipitationAnalysis(data, ensemble, dayOffset = 0) {
+    const widget = document.getElementById('precipitation-analysis-widget');
+    if (!widget) return;
+
+    const showWidget = settingsManager?.displayDetails?.shows_weather_report ?? true;
+    widget.style.display = showWidget ? '' : 'none';
+    if (!showWidget || !data?.hourly) return;
+
+    const start = dayOffset * 24;
+    const end = start + 24;
+    
+    const times = (data.hourly.time ?? []).slice(start, end);
+    const temps = (data.hourly.temperature_2m ?? []).slice(start, end);
+    const precips = (data.hourly.precipitation ?? []).slice(start, end);
+    const probabilities = (data.hourly.precipitation_probability ?? []).slice(start, end);
+    const clouds = (data.hourly.cloud_cover ?? []).slice(start, end);
+    const winds = (data.hourly.wind_speed_10m ?? []).slice(start, end);
+
+    // 1. SUMMARY STATS
+    const totalPrecip = precips.reduce((a, b) => (a || 0) + (b || 0), 0);
+    const maxProb = Math.max(...probabilities.filter(p => p !== null && p !== undefined), 0);
+    const maxTemp = Math.max(...temps.filter(t => t !== null));
+    const minTemp = Math.min(...temps.filter(t => t !== null));
+    const maxCloud = Math.max(...clouds.filter(c => c !== null && c !== undefined), 0);
+    const maxWind = Math.max(...winds.filter(w => w !== null));
+
+    // 2. ENSEMBLE ANALYSIS
+    let consensusPercent = 0;
+    let rainModels = 0;
+    let dryModels = 0;
+    let totalModels = 0;
+    
+    if (ensemble && ensemble.length > 0) {
+        ensemble.forEach(model => {
+            if (model.hourly?.precipitation) {
+                const modelPrecips = (model.hourly.precipitation ?? []).slice(start, end);
+                if (modelPrecips.some(p => (p || 0) > 0.1)) rainModels++;
+                else dryModels++;
+                totalModels++;
+            }
+        });
+        if (totalModels > 0) {
+            consensusPercent = Math.max(rainModels, dryModels) / totalModels * 100;
+        }
+    }
+
+    // 3. INTENSITY SCALE
+    const maxRain = Math.max(...precips.filter(p => p !== null && p !== undefined), 0);
+    let intensityLabel = '🟢 Leicht';
+    if (maxRain > 5) intensityLabel = '🔴 Starkregen';
+    else if (maxRain > 2) intensityLabel = '🟠 Kräftig';
+    else if (maxRain > 0.5) intensityLabel = '🟡 Moderat';
+    else if (maxRain > 0.1) intensityLabel = '🟢 Schwach';
+    else intensityLabel = 'Kein Regen';
+
+    // 4. FIND RAIN PERIOD
+    let rainStart = null, rainEnd = null;
+    for (let i = 0; i < precips.length; i++) {
+        if ((precips[i] || 0) > 0.1) {
+            if (!rainStart) rainStart = i;
+            rainEnd = i;
+        }
+    }
+
+    // 5. SPATIAL PROBABILITY
+    // Wie viel % der Timeline hat Regen?
+    const rainyHours = precips.filter(p => (p || 0) > 0.1).length;
+    const spatialPercent = (rainyHours / precips.length * 100).toFixed(0);
+
+    // 6. RENDER SUMMARY
+    document.getElementById('analysis-total-precip').textContent = `${totalPrecip.toFixed(1)} mm`;
+    document.getElementById('analysis-rain-prob').textContent = `${Math.round(maxProb)}%`;
+    document.getElementById('analysis-consensus').textContent = `${Math.round(consensusPercent)}%`;
+    document.getElementById('analysis-intensity').textContent = intensityLabel;
+
+    // 7. RENDER TIMELINE
+    const maxPrecip = Math.max(...precips.filter(p => p !== null), 0.1);
+    const timelineHTML = times.map((timeStr, i) => {
+        const precip = precips[i] ?? 0;
+        const prob = probabilities[i] ?? 0;
+        const hour = parseInt(timeStr.slice(11, 13));
+
+        const barHeight = precip === 0 ? 4 : Math.max(4, (precip / maxPrecip) * 76);
+        let rainColor = '#a7d8ed';
+        if (precip > 0.5 && precip <= 1) rainColor = '#4ca3d4';
+        else if (precip > 1 && precip <= 2) rainColor = '#1e88d4';
+        else if (precip > 2 && precip <= 5) rainColor = '#0d47a1';
+        else if (precip > 5) rainColor = '#001a4d';
+
+        return `
+            <div class="timeline-hour">
+                <div class="timeline-hour-time">${String(hour).padStart(2, '0')}:00</div>
+                <div class="rain-bar-container">
+                    <div class="rain-bar" style="height: ${barHeight}px; background: ${rainColor}"></div>
+                    ${precip > 0.1 ? `<div class="rain-amount">${precip.toFixed(1)}mm</div>` : ''}
+                </div>
+                ${prob > 0 ? `<div class="rain-prob">${Math.round(prob)}%</div>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    document.getElementById('precipitation-timeline').innerHTML = timelineHTML || '<div style="padding:1rem;color:var(--text-3)">Keine Daten</div>';
+
+    // 8. RENDER DETAILS
+    // Zeitspanne
+    if (rainStart !== null) {
+        const startTime = new Date(times[rainStart]).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        const endTime = new Date(times[rainEnd]).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        const duration = rainEnd - rainStart + 1;
+        document.getElementById('analysis-timespan').textContent = `${startTime} - ${endTime} (${duration}h)`;
+    } else {
+        document.getElementById('analysis-timespan').textContent = 'Kein Niederschlag erwartet';
+    }
+
+    // Modellübereinstimmung
+    if (totalModels > 0) {
+        document.getElementById('analysis-model-agreement').textContent = `${rainModels} Läufe mit Regen / ${totalModels} insgesamt (${Math.round(rainModels/totalModels*100)}%)`;
+    } else {
+        document.getElementById('analysis-model-agreement').textContent = 'Ensemble-Daten nicht verfügbar';
+    }
+
+    // Räumliche Verteilung
+    document.getElementById('analysis-spatial').textContent = `${spatialPercent}% der nächsten 24h mit Niederschlag (${rainyHours}/24h)`;
+
+    // Intensität Detailliert
+    if (maxRain > 0) {
+        let description = '';
+        if (maxRain > 5) description = `Starkregen: ${maxRain.toFixed(1)} mm/h - Warnung vor Überflutungen möglich`;
+        else if (maxRain > 2) description = `Kräftiger Regen: ${maxRain.toFixed(1)} mm/h - Achten Sie auf Straßen`;
+        else if (maxRain > 0.5) description = `Moderater Regen: ${maxRain.toFixed(1)} mm/h - Schirm empfohlen`;
+        else description = `Leichter Regen: ${maxRain.toFixed(1)} mm/h`;
+        document.getElementById('analysis-intensity-detail').textContent = description;
+    } else {
+        document.getElementById('analysis-intensity-detail').textContent = 'Trocken - Kein Niederschlag erwartet';
+    }
+
+    // Temperatur
+    document.getElementById('analysis-temp').textContent = `${minTemp.toFixed(0)}° bis ${maxTemp.toFixed(0)}°C`;
+
+    // Bedeckung
+    const cloudDesc = maxCloud > 80 ? `Stark bewölkt (${Math.round(maxCloud)}%)` : 
+                     maxCloud > 50 ? `Teilweise bewölkt (${Math.round(maxCloud)}%)` :
+                     maxCloud > 20 ? `Teils heiter (${Math.round(maxCloud)}%)` :
+                     `Heiter (${Math.round(maxCloud)}%)`;
+    document.getElementById('analysis-clouds').textContent = cloudDesc;
+
+    // Wind
+    const windDesc = maxWind > 40 ? '(Stürmisch)' : maxWind > 25 ? '(Windig)' : maxWind > 10 ? '(Mäßig)' : '(Schwach)';
+    document.getElementById('analysis-wind').textContent = `${maxWind.toFixed(0)} km/h ${windDesc}`;
+
+    // 9. RENDER ICONS
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons({ nodes: [widget] });
+    }
+
+    // 10. SETUP TOGGLE
+    const toggleBtn = document.getElementById('precipitation-analysis-toggle');
+    if (toggleBtn && !toggleBtn.dataset.listenerSet) {
+        toggleBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            widget.classList.toggle('expanded');
+        });
+        toggleBtn.dataset.listenerSet = 'true';
+    }
+}
+
 // ─── Display: Niederschlags-Widget ────────────────────────────────────────────
 
 function displayPrecipitationWidget(data, dayOffset = 0, dayCount = 12) {
@@ -697,6 +867,173 @@ function displayPrecipitationWidget(data, dayOffset = 0, dayCount = 12) {
 
     // Setup Toggle Event (nur einmal)
     const toggleBtn = document.getElementById('precipitation-toggle');
+    if (toggleBtn && !toggleBtn.dataset.listenerSet) {
+        toggleBtn.addEventListener('click', e => {
+            e.stopPropagation();
+            widget.classList.toggle('expanded');
+        });
+        toggleBtn.dataset.listenerSet = 'true';
+    }
+}
+
+// ─── Weather Report Generator ─────────────────────────────────────────
+
+function displayWeatherReport(data, ensemble, dayOffset = 0) {
+    const widget = document.getElementById('weather-report-widget');
+    const showReport = settingsManager?.displayDetails?.shows_weather_report ?? true;
+    if (!widget) return;
+    widget.style.display = showReport ? '' : 'none';
+
+    const start = dayOffset * 24;
+    const end   = start + 24;
+    
+    const times = data.hourly.time.slice(start, end);
+    const temps = data.hourly.temperature_2m.slice(start, end);
+    const precips = (data.hourly.precipitation || []).slice(start, end);
+    const probabilities = (data.hourly.precipitation_probability || []).slice(start, end);
+    const clouds = (data.hourly.cloud_cover || []).slice(start, end);
+    const winds = (data.hourly.wind_speed_10m || []).slice(start, end);
+    const pressure = (data.hourly.pressure_msl || []).slice(start, end);
+    const codes = data.hourly.weather_code.slice(start, end);
+
+    // Ensemble Analyse (wenn vorhanden)
+    let ensembleStats = { rain: 0, snow: 0, dry: 0, total: 0 };
+    if (ensemble && ensemble.length > 0) {
+        ensemble.forEach(model => {
+            if (model.hourly) {
+                const modelPrecips = (model.hourly.precipitation || []).slice(start, end);
+                const hasRain = modelPrecips.some(p => p > 0.1);
+                const hasSnow = modelPrecips.some(p => p > 0.5) && temps[0] < 2;
+                if (hasSnow) ensembleStats.snow++;
+                else if (hasRain) ensembleStats.rain++;
+                else ensembleStats.dry++;
+                ensembleStats.total++;
+            }
+        });
+    }
+
+    // Berechne Statistiken
+    const maxTemp = Math.max(...temps.filter(t => t !== null));
+    const minTemp = Math.min(...temps.filter(t => t !== null));
+    const avgTemp = (temps.filter(t => t !== null).reduce((a, b) => a + b, 0) / temps.filter(t => t !== null).length).toFixed(1);
+    
+    const totalPrecip = precips.reduce((a, b) => (a || 0) + (b || 0), 0);
+    const maxCloud = Math.max(...clouds.filter(c => c !== null && c !== undefined));
+    const avgWind = (winds.filter(w => w !== null).reduce((a, b) => a + b, 0) / winds.filter(w => w !== null).length).toFixed(1);
+    
+    // Regen-Zeitspanne
+    let rainStart = null;
+    let rainEnd = null;
+    for (let i = 0; i < precips.length; i++) {
+        if ((precips[i] || 0) > 0.1) {
+            if (!rainStart) rainStart = i;
+            rainEnd = i;
+        }
+    }
+
+    // Baue Report zusammen
+    let report = '';
+
+    // Headline
+    const dateStr = new Date(times[0]).toLocaleDateString('de-DE', { weekday: 'long', month: 'long', day: 'numeric' });
+    report += `📋 WETTERBERICHT: ${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}\n`;
+    report += `${'═'.repeat(50)}\n\n`;
+
+    // Zusammenfassung
+    report += `🌡️ TEMPERATUR\n`;
+    report += `─ Höchst: ${maxTemp.toFixed(1)}°C\n`;
+    report += `─ Tiefst: ${minTemp.toFixed(1)}°C\n`;
+    report += `─ Durchschnitt: ${avgTemp}°C\n\n`;
+
+    // Bedeckung
+    report += `☁️ BEWÖLKUNG\n`;
+    const cloudDesc = maxCloud > 80 ? 'Stark bewölkt' : maxCloud > 50 ? 'Teilweise bewölkt' : maxCloud > 20 ? 'Teils heiter' : 'Heiter';
+    report += `─ Kondition: ${cloudDesc}\n`;
+    report += `─ Max Bedeckung: ${Math.round(maxCloud)}%\n\n`;
+
+    // Niederschlag - Ensemble Analyse
+    if (ensembleStats.total > 0) {
+        const rainPercent = ((ensembleStats.rain + ensembleStats.snow) / ensembleStats.total * 100).toFixed(0);
+        const dryPercent = (ensembleStats.dry / ensembleStats.total * 100).toFixed(0);
+        
+        report += `🌧️ NIEDERSCHLAG - MODELLÜBEREINSTIMMUNG\n`;
+        report += `─ Von ${ensembleStats.total} Modelläufen:\n`;
+        report += `  • ${ensembleStats.dry} Läufe TROCKEN (${dryPercent}%)\n`;
+        report += `  • ${ensembleStats.rain} Läufe mit REGEN (${rainPercent}%)\n`;
+        if (ensembleStats.snow > 0) {
+            report += `  • ${ensembleStats.snow} Läufe mit SCHNEE\n`;
+        }
+        report += `\n─ Bewertung: `;
+        if (ensembleStats.dry / ensembleStats.total > 0.8) {
+            report += 'TROCKEN - Niederschlag unwahrscheinlich\n';
+        } else if (ensembleStats.dry / ensembleStats.total > 0.5) {
+            report += 'ÜBERWIEGEND TROCKEN - Nur geringe Chance auf Regen\n';
+        } else if (ensembleStats.rain / ensembleStats.total > 0.7) {
+            report += 'REGEN WAHRSCHEINLICH - Die meisten Modelle zeigen Niederschlag\n';
+        } else {
+            report += 'GEMISCHT - Risiko für Niederschlag vorhanden\n';
+        }
+    }
+
+    report += `\n─ Gesamtniederschlag: ${totalPrecip.toFixed(1)} mm\n`;
+    
+    if (rainStart !== null) {
+        const rainStartTime = new Date(times[rainStart]).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        const rainEndTime = new Date(times[rainEnd]).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        const rainDuration = (rainEnd - rainStart + 1);
+        report += `─ Zeitspanne: ab ${rainStartTime} bis ca. ${rainEndTime} (${rainDuration}h)\n`;
+        
+        // Bestimme Intensität
+        const maxRain = Math.max(...precips.slice(rainStart, rainEnd + 1));
+        if (maxRain > 5) {
+            report += `─ Intensität: 🔴 STARKREGEN (>5 mm/h)\n`;
+        } else if (maxRain > 2) {
+            report += `─ Intensität: 🟠 KRÄFTIG (2-5 mm/h)\n`;
+        } else if (maxRain > 0.5) {
+            report += `─ Intensität: 🟡 MODERAT (0.5-2 mm/h)\n`;
+        } else {
+            report += `─ Intensität: 🟢 LEICHT (<0.5 mm/h)\n`;
+        }
+    } else {
+        report += `─ Status: KEIN REGEN ERWARTET\n`;
+    }
+
+    // Wahrscheinlichkeit
+    const maxProb = Math.max(...probabilities.filter(p => p !== null));
+    report += `─ Max Regenwahrscheinlichkeit: ${Math.round(maxProb)}%\n\n`;
+
+    // Wind
+    report += `💨 WIND\n`;
+    report += `─ Durchschnittswind: ${avgWind} km/h\n`;
+    const maxWind = Math.max(...winds.filter(w => w !== null));
+    report += `─ Höchstwind: ${maxWind.toFixed(1)} km/h\n`;
+    const windDesc = maxWind > 40 ? '(Stürmisch)' : maxWind > 25 ? '(Windig)' : maxWind > 10 ? '(Mäßig)' : '(Schwach)';
+    report += `  ${windDesc}\n\n`;
+
+    // Luftdruck
+    const avgPressure = (pressure.filter(p => p !== null).reduce((a, b) => a + b, 0) / pressure.filter(p => p !== null).length / 100).toFixed(0);
+    report += `🔻 LUFTDRUCK\n`;
+    report += `─ Durchschnitt: ${avgPressure} hPa\n`;
+    report += `─ Status: `;
+    if (avgPressure > 1020) {
+        report += 'Hoch (Stabiles Wetter)\n';
+    } else if (avgPressure < 1000) {
+        report += 'Tief (Wechselhafte Bedingungen)\n';
+    } else {
+        report += 'Normal\n';
+    }
+
+    report += `\n${'═'.repeat(50)}\n`;
+    report += `⏰ Aktualisiert: ${new Date().toLocaleTimeString('de-DE')}`;
+
+    // Injiziere in HTML
+    const contentDiv = document.getElementById('weather-report-text');
+    if (contentDiv) {
+        contentDiv.textContent = report;
+    }
+
+    // Toggle-Listener
+    const toggleBtn = document.getElementById('weather-report-toggle');
     if (toggleBtn && !toggleBtn.dataset.listenerSet) {
         toggleBtn.addEventListener('click', e => {
             e.stopPropagation();
@@ -942,7 +1279,7 @@ function showDayDetail(dayIndex) {
     document.getElementById('day-detail-title').textContent = `${label} · ${maxT}° / ${minT}°`;
     displayHourlyForecast(cachedLongRange, dayIndex, 'day-detail-hourly',
         dayIndex <= 1 ? cachedEnsemble : null, null);
-    displayPrecipitationWidget(cachedLongRange, dayIndex, 24);
+    displayPrecipitationAnalysis(cachedLongRange, dayIndex <= 1 ? cachedEnsemble : null, dayIndex);
 
     const panel = document.getElementById('day-detail-panel');
     panel.classList.remove('hidden');
@@ -1224,7 +1561,8 @@ const DEFAULT_DISPLAY_DETAILS = {
     shows_precipitation: true,
     shows_visibility: true,
     shows_pressure: true,
-    shows_precipitation_widget: true
+    shows_precipitation_widget: true,
+    shows_weather_report: true
 };
 
 class SettingsManager {
@@ -1269,7 +1607,8 @@ class SettingsManager {
             'show-precipitation': 'shows_precipitation',
             'show-visibility': 'shows_visibility',
             'show-pressure': 'shows_pressure',
-            'show-precipitation-widget': 'shows_precipitation_widget'
+            'show-precipitation-widget': 'shows_precipitation_widget',
+            'show-weather-report': 'shows_weather_report'
         };
 
         Object.entries(detailCheckboxes).forEach(([checkboxId, key]) => {
@@ -1278,9 +1617,9 @@ class SettingsManager {
                 checkbox.checked = this.displayDetails[key];
                 checkbox.addEventListener('change', e => {
                     this.setDisplayDetail(key, e.target.checked);
-                    // Sofortiges Update für show-precipitation-widget
-                    if (checkboxId === 'show-precipitation-widget') {
-                        const widget = document.getElementById('precipitation-widget');
+                    // Sofortiges Update für show-weather-report
+                    if (checkboxId === 'show-weather-report') {
+                        const widget = document.getElementById('precipitation-analysis-widget');
                         if (widget) widget.style.display = e.target.checked ? '' : 'none';
                     }
                 });
@@ -1300,6 +1639,9 @@ class SettingsManager {
 
         // Favorite button
         document.getElementById('favorite-btn')?.addEventListener('click', () => this.toggleCurrentFavorite());
+
+        // Init Favorites Quick Bar
+        this.updateFavoritesQuickBar();
 
         // Update WEIGHTS global when modal is closed
         this.syncWeightsToGlobal();
@@ -1501,6 +1843,53 @@ class SettingsManager {
             if (typeof lucide !== 'undefined') {
                 lucide.createIcons({ nodes: [favoritesList] });
             }
+        }
+
+        // Render Favorites Quick Bar
+        this.updateFavoritesQuickBar();
+    }
+
+    updateFavoritesQuickBar() {
+        const quickbar = document.getElementById('favorites-quickbar');
+        if (!quickbar) return;
+
+        const favorites = this.loadFavorites();
+        if (favorites.length === 0) {
+            quickbar.innerHTML = '<div style="padding:0.5rem 1rem;color:var(--text-3);font-size:0.8rem">Keine Favoriten hinzugefügt</div>';
+            return;
+        }
+
+        const currentFav = favorites.find(f => 
+            Math.abs(f.lat - currentLat) < 0.01 && Math.abs(f.lon - currentLon) < 0.01
+        );
+
+        quickbar.innerHTML = favorites
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .map(fav => {
+                const isActive = currentFav && 
+                                 Math.abs(fav.lat - currentFav.lat) < 0.01 && 
+                                 Math.abs(fav.lon - currentFav.lon) < 0.01;
+                return `
+                    <button class="favorite-quick-item ${isActive ? 'active' : ''}" data-lat="${fav.lat}" data-lon="${fav.lon}" title="${escapeHtml(fav.name)}">
+                        <i data-lucide="${isActive ? 'star' : 'map-pin'}" style="width:14px;height:14px"></i>
+                        <span>${escapeHtml(fav.name)}</span>
+                    </button>
+                `;
+            }).join('');
+
+        // Event listeners für Schnellauswahl
+        quickbar.addEventListener('click', e => {
+            const btn = e.target.closest('.favorite-quick-item');
+            if (btn) {
+                const lat = parseFloat(btn.dataset.lat);
+                const lon = parseFloat(btn.dataset.lon);
+                loadLocationWeather(lat, lon);
+            }
+        });
+
+        // Render icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons({ nodes: [quickbar] });
         }
     }
 

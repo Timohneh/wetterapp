@@ -166,6 +166,65 @@
             height: 18px;
         }
 
+        /* ── Favorites Quick Bar ── */
+        .favorites-quickbar {
+            display: flex;
+            gap: 0.5rem;
+            overflow-x: auto;
+            padding: 0.5rem;
+            background: var(--card);
+            border: 1px solid var(--card-b);
+            border-radius: var(--radius);
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        .favorites-quickbar::-webkit-scrollbar {
+            height: 3px;
+        }
+
+        .favorites-quickbar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 999px;
+        }
+
+        html[data-theme="light"] .favorites-quickbar::-webkit-scrollbar-thumb {
+            background: rgba(100,116,139,0.3);
+        }
+
+        .favorite-quick-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--card-b);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+            transition: all 0.2s;
+            color: var(--text-2);
+            font-size: 0.85rem;
+        }
+
+        .favorite-quick-item:hover {
+            background: var(--card-hov);
+            border-color: var(--accent);
+            color: var(--text);
+        }
+
+        .favorite-quick-item.active {
+            background: var(--accent-lo);
+            border-color: var(--accent);
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .favorite-quick-item i {
+            flex-shrink: 0;
+        }
+
         .search-box input::placeholder { color: var(--text-3); }
 
         .dropdown {
@@ -1372,6 +1431,291 @@
             font-size: 0.85rem;
         }
 
+        /* ── Weather Report Widget ── */
+        .weather-report-widget {
+            margin-bottom: 1.25rem;
+            cursor: pointer;
+        }
+
+        .weather-report-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.25rem;
+            gap: 1rem;
+        }
+
+        .weather-report-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--text);
+        }
+
+        .weather-report-title i {
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .weather-report-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: var(--text-2);
+            transition: transform 0.3s, color 0.2s;
+            flex-shrink: 0;
+        }
+
+        .weather-report-toggle:hover {
+            color: var(--accent);
+        }
+
+        .weather-report-widget.expanded .weather-report-toggle svg {
+            transform: rotate(180deg);
+        }
+
+        .weather-report-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .weather-report-widget.expanded .weather-report-content {
+            max-height: 1000px;
+        }
+
+        .weather-report-text {
+            padding: 0 1.25rem 1.25rem;
+            border-top: 1px solid var(--card-b);
+            color: var(--text-2);
+            font-size: 0.9rem;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .weather-report-text strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .weather-report-text .section {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--card-b);
+        }
+
+        .weather-report-text .section:first-child {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: none;
+        }
+
+        /* ── Precipitation Analysis Widget ── */
+        .precipitation-analysis-widget {
+            margin-bottom: 1.25rem;
+            cursor: pointer;
+        }
+
+        .precipitation-analysis-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.25rem;
+            gap: 1rem;
+            user-select: none;
+        }
+
+        .precipitation-analysis-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--text);
+        }
+
+        .precipitation-analysis-title i {
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .precipitation-analysis-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: var(--text-2);
+            transition: transform 0.3s, color 0.2s;
+            flex-shrink: 0;
+        }
+
+        .precipitation-analysis-toggle:hover {
+            color: var(--accent);
+        }
+
+        .precipitation-analysis-widget.expanded .precipitation-analysis-toggle svg {
+            transform: rotate(180deg);
+        }
+
+        .precipitation-analysis-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 1rem;
+            padding: 1.25rem;
+            border-top: 1px solid var(--card-b);
+            border-bottom: 1px solid var(--card-b);
+        }
+
+        .analysis-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .analysis-stat-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-3);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .analysis-stat-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .precipitation-analysis-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .precipitation-analysis-widget.expanded .precipitation-analysis-content {
+            max-height: 1200px;
+        }
+
+        .precipitation-timeline-section,
+        .precipitation-details-section {
+            padding: 1.25rem;
+            border-top: 1px solid var(--card-b);
+        }
+
+        .precipitation-timeline-section h4,
+        .precipitation-details-section h4 {
+            margin: 0 0 1rem 0;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .precipitation-timeline {
+            display: flex;
+            gap: 1rem;
+            overflow-x: auto;
+            padding: 1rem 0;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.1) transparent;
+        }
+
+        .precipitation-timeline::-webkit-scrollbar {
+            height: 3px;
+        }
+
+        .precipitation-timeline::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1);
+            border-radius: 999px;
+        }
+
+        html[data-theme="light"] .precipitation-timeline::-webkit-scrollbar-thumb {
+            background: rgba(100,116,139,0.3);
+        }
+
+        .timeline-hour {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 48px;
+            flex-shrink: 0;
+        }
+
+        .timeline-hour-time {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .rain-bar-container {
+            height: 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+        }
+
+        .rain-bar {
+            width: 12px;
+            border-radius: 2px 2px 0 0;
+            transition: opacity 0.2s, filter 0.2s;
+        }
+
+        .rain-bar:hover {
+            opacity: 0.8;
+            filter: brightness(1.2);
+        }
+
+        .rain-amount {
+            font-size: 0.65rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-top: 0.4rem;
+        }
+
+        .rain-prob {
+            font-size: 0.6rem;
+            color: var(--text-3);
+            margin-top: 0.2rem;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--card-b);
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 500;
+            color: var(--text);
+            min-width: 140px;
+            flex-shrink: 0;
+        }
+
+        .detail-value {
+            text-align: right;
+            color: var(--text-2);
+            flex: 1;
+        }
+
         /* ── Responsive ── */
         @media (max-width: 500px) {
             .settings-panel {
@@ -1426,6 +1770,11 @@
             <i data-lucide="star" style="width:18px;height:18px"></i>
         </button>
         <div id="location-dropdown" class="dropdown hidden"></div>
+    </div>
+
+    <!-- Favorites Quick Selection -->
+    <div class="favorites-quickbar" id="favorites-quickbar">
+        <!-- Favorites injected here -->
     </div>
 
     <!-- Hero: Current Weather -->
@@ -1499,66 +1848,85 @@
         </div>
     </div>
 
-    <!-- Precipitation Details Widget (expandable) -->
-    <div class="precipitation-widget card" id="precipitation-widget">
-        <div class="precipitation-header">
-            <div class="precipitation-stats">
-                <div class="precipitation-stat">
-                    <i data-lucide="cloud-rain"></i>
-                    <div>
-                        <div class="precipitation-label">Niederschlag</div>
-                        <div class="precipitation-total" id="precip-total">-- mm</div>
-                    </div>
-                </div>
-                <div class="precipitation-stat">
-                    <i data-lucide="percent"></i>
-                    <div>
-                        <div class="precipitation-label">Max Risiko</div>
-                        <div class="precipitation-risk" id="precip-risk">--%</div>
-                    </div>
-                </div>
+    <!-- Consolidated Precipitation & Weather Analysis -->
+    <div class="precipitation-analysis-widget card" id="precipitation-analysis-widget">
+        <div class="precipitation-analysis-header">
+            <div class="precipitation-analysis-title">
+                <i data-lucide="cloud-rain"></i>
+                <span>Niederschlag & Wetter heute</span>
             </div>
-            <button class="precipitation-toggle" id="precipitation-toggle" title="Ausklappen">
+            <button class="precipitation-analysis-toggle" id="precipitation-analysis-toggle" title="Ausklappen">
                 <i data-lucide="chevron-down"></i>
             </button>
         </div>
 
-        <div class="precipitation-content" id="precipitation-content">
-            <div class="precipitation-timeline-container">
+        <div class="precipitation-analysis-summary">
+            <div class="analysis-stat">
+                <div class="analysis-stat-label">Gesamtmenge</div>
+                <div class="analysis-stat-value" id="analysis-total-precip">-- mm</div>
+            </div>
+            <div class="analysis-stat">
+                <div class="analysis-stat-label">Wahrscheinlichkeit</div>
+                <div class="analysis-stat-value" id="analysis-rain-prob">--%</div>
+            </div>
+            <div class="analysis-stat">
+                <div class="analysis-stat-label">Modelleinigung</div>
+                <div class="analysis-stat-value" id="analysis-consensus">--%</div>
+            </div>
+            <div class="analysis-stat">
+                <div class="analysis-stat-label">Intensität</div>
+                <div class="analysis-stat-value" id="analysis-intensity">--</div>
+            </div>
+        </div>
+
+        <div class="precipitation-analysis-content" id="precipitation-analysis-content">
+            <!-- Timeline -->
+            <div class="precipitation-timeline-section">
+                <h4>⏰ Stundenweise Niederschlag</h4>
                 <div class="precipitation-timeline" id="precipitation-timeline">
                     <!-- Timeline hours injected here -->
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Weather Report Widget (expandable text report) -->
-    <div class="weather-report-widget card" id="weather-report-widget">
-        <div class="weather-report-header">
-            <div class="weather-report-title">
-                <i data-lucide="file-text"></i>
-                <span>Wetterbericht</span>
+            <!-- Detailed Analysis -->
+            <div class="precipitation-details-section">
+                <h4>📊 Detaillierte Analyse</h4>
+                
+                <div class="detail-row">
+                    <span class="detail-label">📅 Zeitspanne:</span>
+                    <span class="detail-value" id="analysis-timespan">Keine Niederschläge erwartet</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">🎯 Modellübereinstimmung:</span>
+                    <span class="detail-value" id="analysis-model-agreement">-- Läufe mit Regen / -- insgesamt</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">📍 Räumliche Verteilung:</span>
+                    <span class="detail-value" id="analysis-spatial">Berechnung lädt…</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">💪 Intensität:</span>
+                    <span class="detail-value" id="analysis-intensity-detail">--</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">🌡️ Temperatur:</span>
+                    <span class="detail-value" id="analysis-temp">-- bis --°C</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">☁️ Bedeckung:</span>
+                    <span class="detail-value" id="analysis-clouds">--%</span>
+                </div>
+
+                <div class="detail-row">
+                    <span class="detail-label">💨 Wind:</span>
+                    <span class="detail-value" id="analysis-wind">-- km/h</span>
+                </div>
             </div>
-            <button class="weather-report-toggle" id="weather-report-toggle" title="Ausklappen">
-                <i data-lucide="chevron-down"></i>
-            </button>
-        </div>
-
-        <div class="weather-report-content" id="weather-report-content">
-            <div class="weather-report-text" id="weather-report-text">
-                <!-- Report text injected here -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Rain Detail -->
-    <div class="card" id="rain-detail-card">
-        <h3>Niederschlag heute</h3>
-        <div id="rain-status-line" class="rain-status"></div>
-        <div id="rain-prob-bars" class="rain-prob-chart"></div>
-        <div class="rain-footer">
-            <span>Gesamt: <strong id="rain-total-today">-- mm</strong></span>
-            <span id="rain-next-label"></span>
         </div>
     </div>
 
@@ -1766,6 +2134,12 @@
                         <label class="checkbox-label">
                             <input type="checkbox" id="show-precipitation-widget" class="detail-checkbox" checked>
                             <span>Niederschlag-Timeline anzeigen</span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-weather-report" class="detail-checkbox" checked>
+                            <span>Wetterbericht anzeigen</span>
                         </label>
                     </div>
                 </div>
