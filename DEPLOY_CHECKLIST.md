@@ -9,7 +9,6 @@ Verwende diese Checkliste, um den Deploy-Fehler zu beheben:
   
 - [ ] Settings → Pages ist konfiguriert:
   - [ ] **Source** = "GitHub Actions" ← **KRITISCH!**
-  - [ ] Nicht "Deploy from a branch"
   
 - [ ] GitHub Actions sind aktiviert:
   - [ ] Settings → Actions → "Allow all actions"
@@ -36,7 +35,7 @@ Verwende diese Checkliste, um den Deploy-Fehler zu beheben:
 
 ### Fehler: "Cannot find any run with github.run_id"
 ```
-→ Source MUSS "GitHub Actions" sein!
+→ Source MUSS "GitHub Actions" sein
 → Nicht "Deploy from a branch" verwenden
 ```
 

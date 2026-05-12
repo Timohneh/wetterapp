@@ -1,6 +1,6 @@
 # ⚙️ GitHub Pages Setup (Wichtig!)
 
-Der Fehler tritt auf, weil GitHub Pages noch nicht im Repository aktiviert ist. Folge dieser Anleitung:
+Der Deploy läuft über GitHub Actions. Es wird kein `gh-pages`-Branch benötigt.
 
 ## 1️⃣ GitHub Pages aktivieren
 
@@ -8,7 +8,7 @@ Der Fehler tritt auf, weil GitHub Pages noch nicht im Repository aktiviert ist. 
 2. Klicke auf **Settings** (Einstellungen)
 3. Wähle im linken Menü: **Pages**
 4. Unter "Build and deployment":
-   - **Source**: `GitHub Actions` (nicht Branch!)
+   - **Source**: `GitHub Actions`
    - Speichere die Einstellung
 
 ## 2️⃣ Überprüfe die Repository-Einstellungen
@@ -43,13 +43,13 @@ Nach dem Deploy:
 
 ### ❌ "Cannot find any run with github.run_id"
 **Lösung**: 
-- Source muss auf **"GitHub Actions"** stehen (nicht "Deploy from a branch")
-- In Settings → Pages überprüfen
+- In Settings → Pages Source auf **"GitHub Actions"** setzen
+- Danach den Workflow erneut starten oder neu pushen
 
 ### ❌ 404 - Deployment failed
 **Lösung**:
 - Repository muss **public** sein
-- GitHub Pages muss aktiviert sein
+- GitHub Pages muss aktiviert sein und auf **GitHub Actions** stehen
 - Warte 2-3 Minuten nach dem Push
 
 ### ❌ Die Seite ist leer/zeigt alte Version

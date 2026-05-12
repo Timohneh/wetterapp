@@ -20,13 +20,13 @@ Eine moderne Progressive Web App (PWA) für deutsche Wetter-Vorhersagen mit **Mu
 **Dein Repository braucht diese Einstellungen:**
 
 1. Gehe zu **Settings → Pages**
-2. Setze **Source** auf **"GitHub Actions"** (nicht Branch!)
+2. Setze **Source** auf **"GitHub Actions"**
 3. Stelle sicher, dass dein Repository **public** ist
 4. Speichere die Einstellung
 
 Danach:
 - Push deinen Code zu `main` oder `master` Branch
-- GitHub Actions startet automatisch Deploy (Workflow muss sichtbar sein im Actions Tab)
+- GitHub Actions startet automatisch den Pages-Deploy (Workflow muss sichtbar sein im Actions Tab)
 - Die App ist dann verfügbar unter: `https://dein-username.github.io/wetterapp/`
 
 **Detaillierte Anleitung**: Siehe [GITHUB_PAGES_SETUP.md](GITHUB_PAGES_SETUP.md)
