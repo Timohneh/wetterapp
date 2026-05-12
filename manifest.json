@@ -48,7 +48,7 @@
       "name": "Aktuelle Vorhersage",
       "short_name": "Vorhersage",
       "description": "Zeige die aktuelle Wettervorhersage",
-      "url": "/?view=current",
+      "url": "./",
       "icons": [
         {
           "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231a1a1a' width='192' height='192'/><circle cx='96' cy='96' r='60' fill='%23fbbf24'/></svg>",

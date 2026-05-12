@@ -5,194 +5,333 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Deutsche Wetter-PWA mit Multi-Model-Vorhersagen">
     <meta name="theme-color" content="#1a1a1a">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231a1a1a' width='192' height='192'/><circle cx='96' cy='96' r='60' fill='%23fbbf24'/></svg>">
     <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231a1a1a' width='192' height='192'/><circle cx='96' cy='96' r='60' fill='%23fbbf24'/></svg>">
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/@picocss/pico@latest/css/pico.min.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-rainviewer/0.12.1/leaflet-rainviewer.min.js"></script>
 
     <style>
-        * { -webkit-tap-highlight-color: transparent; }
-        body { @apply bg-gray-900 text-white font-sans antialiased; }
-        #map { @apply rounded-lg shadow-xl; }
+        :root {
+            --form-element-valid-border-color: #fbbf24;
+            --form-element-focus-border-color: #fbbf24;
+            --focus-ring: 0 0 0 3px rgba(251, 191, 36, 0.2);
+            --primary-color: #fbbf24;
+            --primary-focus: #f59e0b;
+        }
+
+        body {
+            background: #111827;
+            color: #e5e7eb;
+        }
+
+        h1, h2, h3 { color: #fbbf24; }
+
+        input, textarea, select {
+            background: #1f2937;
+            border-color: #3f4652;
+            color: #e5e7eb;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            background: #1f2937;
+            border-color: #fbbf24;
+            box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.1);
+        }
+
+        article { background: #1f2937; border-color: #3f4652; }
+        nav { background: #1a202c; border-color: #3f4652; }
+        footer { background: #1a202c; border-color: #3f4652; }
+
+        #map { border-radius: 0.5rem; box-shadow: 0 10px 15px rgba(0,0,0,0.3); height: 400px; }
+
+        .weather-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .weather-card {
+            background: #111827;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #3f4652;
+        }
+
+        .weather-card small { color: #9ca3af; }
+
         .confidence-badge {
-            @apply px-3 py-1 rounded-full text-sm font-semibold;
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
         }
-        .confidence-high { @apply bg-emerald-900 text-emerald-200; }
-        .confidence-medium { @apply bg-amber-900 text-amber-200; }
-        .confidence-low { @apply bg-red-900 text-red-200; }
-        .model-tag {
-            @apply inline-block px-2 py-1 rounded text-xs font-mono;
+
+        .confidence-high { background: #064e3b; color: #a7f3d0; }
+        .confidence-medium { background: #78350f; color: #fcd34d; }
+        .confidence-low { background: #7f1d1d; color: #fca5a5; }
+
+        .model-card {
+            background: #111827;
+            padding: 0.75rem;
+            border-radius: 0.375rem;
+            border-left: 3px solid #fbbf24;
+            margin-bottom: 0.5rem;
         }
+
+        .location-search {
+            position: relative;
+            margin-bottom: 1rem;
+        }
+
+        .location-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #1f2937;
+            border: 1px solid #3f4652;
+            border-top: none;
+            max-height: 300px;
+            overflow-y: auto;
+            border-radius: 0 0 0.5rem 0.5rem;
+            z-index: 100;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .location-item {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            border-bottom: 1px solid #3f4652;
+            transition: background 0.2s;
+        }
+
+        .location-item:hover { background: #2d3748; }
+        .location-item:last-child { border-bottom: none; }
+
         .spinner {
-            @apply inline-block animate-spin;
+            display: inline-block;
+            animation: spin 1s linear infinite;
+            width: 1em;
+            height: 1em;
         }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .trend-indicator {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+
+        @media (min-width: 768px) {
+            .content-grid {
+                display: grid;
+                grid-template-columns: 2fr 1fr;
+                gap: 2rem;
+            }
+        }
+
+        #hourly-forecast {
+            display: flex;
+            gap: 0.75rem;
+            overflow-x: auto;
+            padding-bottom: 1rem;
+        }
+
+        .hourly-item {
+            background: #111827;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            border: 1px solid #3f4652;
+            text-align: center;
+            min-width: 80px;
+            flex-shrink: 0;
+        }
+
+        .hourly-item small { display: block; color: #9ca3af; margin-top: 0.25rem; }
     </style>
 
     <title>Wetterapp Deutschland</title>
 </head>
-<body class="bg-gray-900">
-    <div class="min-h-screen flex flex-col">
-        <!-- Header -->
-        <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-10 shadow-lg">
-            <div class="max-w-6xl mx-auto px-4 py-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-2xl font-bold text-amber-400">Wetterapp</h1>
-                        <p class="text-xs text-gray-400">Deutschland • Multi-Modell-Vorhersage</p>
-                    </div>
-                    <div id="location-display" class="text-right text-sm text-gray-300">
-                        <div id="current-location">Lädt...</div>
-                        <div id="location-coords" class="text-xs text-gray-500"></div>
-                    </div>
-                </div>
-            </div>
-        </header>
+<body>
+    <!-- Header -->
+    <nav class="container-fluid">
+        <ul>
+            <li><strong>🌤️ Wetterapp</strong></li>
+        </ul>
+        <ul>
+            <li style="text-align: right;">
+                <small id="current-location" style="display: block; font-weight: bold;">Lädt...</small>
+                <small id="location-coords" style="display: block; color: #9ca3af;"></small>
+            </li>
+        </ul>
+    </nav>
 
-        <!-- Main Content -->
-        <main class="flex-1 max-w-6xl mx-auto w-full px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <main class="container">
+        <!-- Standortsuche -->
+        <div class="location-search">
+            <input
+                type="text"
+                id="location-input"
+                placeholder="🔍 Adresse eingeben (z.B. Berlin, München, Hamburg...)"
+                autocomplete="off"
+            >
+            <div id="location-dropdown" class="location-dropdown" style="display: none;"></div>
+        </div>
+
+        <small style="color: #9ca3af; display: block; margin-bottom: 1rem;">
+            Multi-Modell-Vorhersage: ICON-D2 (50%) • ECMWF (30%) • GFS (20%)
+        </small>
+
+        <div class="content-grid">
             <!-- Left Panel: Weather Data -->
-            <div class="lg:col-span-2 space-y-6">
+            <div>
                 <!-- Current Weather -->
-                <section class="bg-gray-800 rounded-lg p-6 border border-gray-700">
-                    <h2 class="text-xl font-bold mb-4 text-amber-300">Aktuelle Vorhersage</h2>
+                <article>
+                    <h2>Aktuelle Vorhersage</h2>
 
                     <!-- Confidence Score -->
-                    <div class="mb-4 p-4 bg-gray-700 rounded-lg border-l-4 border-amber-400">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <p class="text-sm text-gray-300">Vorhersage-Sicherheit</p>
-                                <p id="confidence-text" class="text-lg font-bold text-white">Berechne...</p>
-                            </div>
-                            <div id="confidence-badge" class="confidence-badge confidence-medium">
+                    <div style="background: #111827; padding: 1rem; border-left: 4px solid #fbbf24; border-radius: 0.25rem; margin-bottom: 1rem;">
+                        <small style="color: #9ca3af;">Vorhersage-Sicherheit</small>
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem;">
+                            <p id="confidence-text" style="margin: 0; font-weight: bold;">Berechne...</p>
+                            <span id="confidence-badge" class="confidence-badge confidence-medium">
                                 <span id="confidence-value">--</span>%
-                            </div>
+                            </span>
                         </div>
                     </div>
 
-                    <!-- Weather Icon & Description -->
-                    <div class="flex items-center gap-4 mb-6 p-4 bg-gray-700 rounded-lg">
-                        <div id="weather-icon" class="w-16 h-16 text-amber-300"></div>
+                    <!-- Weather Icon & Trend -->
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <div id="weather-icon" style="width: 80px; height: 80px; flex-shrink: 0; color: #fbbf24;"></div>
                         <div>
-                            <p id="weather-description" class="text-lg font-semibold text-white">Lädt...</p>
-                            <p id="weather-trend" class="text-sm text-gray-300 flex items-center gap-1 mt-1">
-                                <span id="trend-arrow">—</span>
+                            <p id="weather-description" style="margin: 0; font-weight: bold; font-size: 1.1rem;">Lädt...</p>
+                            <p id="weather-trend" style="margin: 0.5rem 0 0 0; font-size: 0.9rem; color: #9ca3af;">
+                                <span id="trend-arrow" class="trend-indicator">—</span>
                                 <span id="trend-text">Trend wird berechnet...</span>
                             </p>
                         </div>
                     </div>
 
                     <!-- Weather Display Grid -->
-                    <div id="weather-display" class="grid grid-cols-2 gap-4">
-                        <div class="bg-gray-700 rounded-lg p-4">
-                            <p class="text-gray-400 text-sm mb-1">Temperatur</p>
-                            <p id="temp-display" class="text-3xl font-bold">--°C</p>
-                            <p id="temp-range" class="text-xs text-gray-500 mt-1">--</p>
-                            <svg id="temp-sparkline" class="w-full h-8 mt-2"></svg>
+                    <div class="weather-grid" id="weather-display">
+                        <div class="weather-card">
+                            <small>Temperatur</small>
+                            <p id="temp-display" style="margin: 0.5rem 0 0 0; font-size: 1.75rem; font-weight: bold;">--°C</p>
+                            <small id="temp-range" style="display: block; margin-top: 0.25rem;">--</small>
+                            <svg id="temp-sparkline" style="width: 100%; height: 40px; margin-top: 0.5rem;"></svg>
                         </div>
-                        <div class="bg-gray-700 rounded-lg p-4">
-                            <p class="text-gray-400 text-sm mb-1">Luftfeuchte</p>
-                            <p id="humidity-display" class="text-3xl font-bold">--%</p>
+
+                        <div class="weather-card">
+                            <small>Luftfeuchte</small>
+                            <p id="humidity-display" style="margin: 0.5rem 0 0 0; font-size: 1.75rem; font-weight: bold;">--%</p>
                         </div>
-                        <div class="bg-gray-700 rounded-lg p-4">
-                            <p class="text-gray-400 text-sm mb-1">Niederschlag</p>
-                            <p id="precipitation-display" class="text-3xl font-bold">--mm</p>
-                            <p id="precipitation-prob" class="text-xs text-gray-500 mt-1">Wahrscheinlichkeit: --</p>
+
+                        <div class="weather-card">
+                            <small>Niederschlag</small>
+                            <p id="precipitation-display" style="margin: 0.5rem 0 0 0; font-size: 1.75rem; font-weight: bold;">--mm</p>
+                            <small id="precipitation-prob" style="display: block; margin-top: 0.25rem;">Wahrscheinlichkeit: --</small>
                         </div>
-                        <div class="bg-gray-700 rounded-lg p-4">
-                            <p class="text-gray-400 text-sm mb-1">Windgeschwindigkeit</p>
-                            <p id="wind-display" class="text-3xl font-bold">-- km/h</p>
+
+                        <div class="weather-card">
+                            <small>Windgeschwindigkeit</small>
+                            <p id="wind-display" style="margin: 0.5rem 0 0 0; font-size: 1.75rem; font-weight: bold;">-- km/h</p>
                         </div>
                     </div>
-                </section>
+                </article>
 
                 <!-- Model Comparison -->
-                <section class="bg-gray-800 rounded-lg p-6 border border-gray-700">
-                    <h2 class="text-xl font-bold mb-4 text-amber-300">Modell-Vergleich</h2>
-                    <div id="model-comparison" class="space-y-3">
-                        <div class="flex items-center gap-2">
-                            <span class="spinner">⏳</span>
-                            <span class="text-gray-400">Modelle werden geladen...</span>
-                        </div>
+                <article>
+                    <h3>Modell-Vergleich</h3>
+                    <div id="model-comparison">
+                        <p><span class="spinner">⏳</span> Modelle werden geladen...</p>
                     </div>
-                </section>
+                </article>
 
                 <!-- Hourly Forecast -->
-                <section class="bg-gray-800 rounded-lg p-6 border border-gray-700">
-                    <h2 class="text-xl font-bold mb-4 text-amber-300">Stundliche Vorhersage (nächste 24h)</h2>
-                    <div id="hourly-forecast" class="grid grid-cols-4 gap-2 overflow-x-auto pb-2">
-                        <div class="flex items-center gap-1">
-                            <span class="spinner">⏳</span>
-                        </div>
+                <article>
+                    <h3>Stündliche Vorhersage (nächste 24h)</h3>
+                    <div id="hourly-forecast">
+                        <div style="text-align: center;"><span class="spinner">⏳</span></div>
                     </div>
-                </section>
+                </article>
             </div>
 
             <!-- Right Panel: Map & Radar -->
-            <div class="lg:col-span-1 space-y-6">
+            <div>
                 <!-- Map -->
-                <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                    <h2 class="text-lg font-bold mb-3 text-amber-300">Kartenansicht</h2>
-                    <div id="map" class="h-80 rounded-lg shadow-md border border-gray-700"></div>
-                </section>
+                <article>
+                    <h3>Kartenansicht</h3>
+                    <div id="map" style="border-radius: 0.5rem; margin-top: 0.5rem;"></div>
+                </article>
 
                 <!-- Radar Controls -->
-                <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                    <h2 class="text-lg font-bold mb-3 text-amber-300">Regenradar</h2>
-                    <div class="space-y-3">
-                        <label class="flex items-center gap-3 cursor-pointer">
-                            <input type="checkbox" id="radar-toggle" class="w-5 h-5 rounded cursor-pointer">
-                            <span class="text-sm">Radar-Overlay aktivieren</span>
+                <article>
+                    <h3>Regenradar</h3>
+                    <fieldset>
+                        <label for="radar-toggle">
+                            <input type="checkbox" id="radar-toggle">
+                            Radar-Overlay aktivieren
                         </label>
-                        <div id="opacity-control" class="hidden">
-                            <label class="text-sm text-gray-400 block mb-2">Transparenz</label>
-                            <input type="range" id="radar-opacity" min="0" max="100" value="70" class="w-full">
-                            <p class="text-xs text-gray-500 mt-1">
-                                <span id="opacity-value">70</span>%
-                            </p>
-                        </div>
+                    </fieldset>
+
+                    <div id="opacity-control" style="display: none;">
+                        <label for="radar-opacity">Transparenz</label>
+                        <input type="range" id="radar-opacity" min="0" max="100" value="70">
+                        <small>
+                            <span id="opacity-value">70</span>%
+                        </small>
                     </div>
-                </section>
+                </article>
 
                 <!-- Quick Stats -->
-                <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                    <h2 class="text-lg font-bold mb-3 text-amber-300">Schnellübersicht</h2>
-                    <div class="space-y-2 text-sm">
-                        <div class="flex justify-between">
-                            <span class="text-gray-400">Sichtbarkeit</span>
-                            <span id="visibility-stat">-- km</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-400">UV-Index</span>
-                            <span id="uv-stat">--</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-gray-400">Taupunkt</span>
-                            <span id="dewpoint-stat">--°C</span>
-                        </div>
-                        <div class="flex justify-between pt-2 border-t border-gray-700">
-                            <span class="text-gray-400 text-xs">Aktualisiert</span>
-                            <span id="update-time" class="text-xs text-gray-500">--:--</span>
-                        </div>
-                    </div>
-                </section>
+                <article>
+                    <h3>Schnellübersicht</h3>
+                    <table style="width: 100%; font-size: 0.9rem;">
+                        <tbody>
+                            <tr>
+                                <td>Sichtbarkeit</td>
+                                <td style="text-align: right;" id="visibility-stat">-- km</td>
+                            </tr>
+                            <tr>
+                                <td>UV-Index</td>
+                                <td style="text-align: right;" id="uv-stat">--</td>
+                            </tr>
+                            <tr>
+                                <td>Taupunkt</td>
+                                <td style="text-align: right;" id="dewpoint-stat">--°C</td>
+                            </tr>
+                            <tr style="border-top: 1px solid #3f4652;">
+                                <td><small>Aktualisiert</small></td>
+                                <td style="text-align: right;"><small id="update-time" style="color: #9ca3af;">--:--</small></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </article>
             </div>
-        </main>
+        </div>
+    </main>
 
-        <!-- Footer -->
-        <footer class="bg-gray-800 border-t border-gray-700 mt-8">
-            <div class="max-w-6xl mx-auto px-4 py-4 text-center text-xs text-gray-500">
-                Datenquellen: Open-Meteo (ICON-D2, ECMWF, GFS) • RainViewer • © Leaflet
-            </div>
-        </footer>
-    </div>
+    <!-- Footer -->
+    <footer>
+        <small style="display: block; text-align: center; color: #9ca3af;">
+            Datenquellen: Open-Meteo (ICON-D2, ECMWF, GFS) • OpenStreetMap/CartoDB • RainViewer • Lucide Icons
+        </small>
+    </footer>
 
     <script>
         if ('serviceWorker' in navigator) {

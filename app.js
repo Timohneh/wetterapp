@@ -56,8 +56,10 @@ function initMap() {
         zoomControl: true
     });
 
-    L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_tonernight/{z}/{x}/{y}.png', {
-        attribution: '&copy; Stadia Maps, &copy; Stamen Design',
+    // Use free CartoDB Positron (Dark) tiles - no API key needed
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
         maxZoom: 18
     }).addTo(map);
 
@@ -126,13 +128,14 @@ function updateLocationDisplay(lat, lon) {
 
 // Event Listeners
 function setupEventListeners() {
+    // Radar toggle
     document.getElementById('radar-toggle').addEventListener('change', (e) => {
         const opacityControl = document.getElementById('opacity-control');
         if (e.target.checked) {
-            opacityControl.classList.remove('hidden');
+            opacityControl.style.display = 'block';
             initRadar();
         } else {
-            opacityControl.classList.add('hidden');
+            opacityControl.style.display = 'none';
             if (radarLayer) {
                 radarLayer.remove();
                 radarLayer = null;
@@ -140,10 +143,37 @@ function setupEventListeners() {
         }
     });
 
+    // Radar opacity
     document.getElementById('radar-opacity').addEventListener('input', (e) => {
         document.getElementById('opacity-value').textContent = e.target.value;
         if (radarLayer) {
             radarLayer.setOpacity(e.target.value / 100);
+        }
+    });
+
+    // Location search
+    const locationInput = document.getElementById('location-input');
+    const locationDropdown = document.getElementById('location-dropdown');
+    let searchTimeout;
+
+    locationInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const query = e.target.value.trim();
+
+        if (query.length < 2) {
+            locationDropdown.style.display = 'none';
+            return;
+        }
+
+        searchTimeout = setTimeout(() => {
+            searchLocation(query);
+        }, 300);
+    });
+
+    // Click outside to close dropdown
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.location-search')) {
+            locationDropdown.style.display = 'none';
         }
     });
 }
@@ -488,6 +518,79 @@ function drawTempSparkline(temps) {
         circle.setAttribute('fill', '#fbbf24');
         svg.appendChild(circle);
     });
+}
+
+// Geocoding: Search for location by address
+async function searchLocation(query) {
+    try {
+        const url = new URL('https://nominatim.openstreetmap.org/search');
+        url.searchParams.append('q', query);
+        url.searchParams.append('format', 'json');
+        url.searchParams.append('limit', '8');
+        url.searchParams.append('countrycodes', 'de'); // Focus on Germany
+
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Geocoding failed');
+
+        const results = await response.json();
+        displayLocationResults(results);
+    } catch (error) {
+        console.error('Location search error:', error);
+    }
+}
+
+// Display search results in dropdown
+function displayLocationResults(results) {
+    const dropdown = document.getElementById('location-dropdown');
+
+    if (!results || results.length === 0) {
+        dropdown.innerHTML = '<div class="location-item" style="cursor: default; color: #9ca3af;">Keine Ergebnisse gefunden</div>';
+        dropdown.style.display = 'block';
+        return;
+    }
+
+    dropdown.innerHTML = results.map((result, i) => `
+        <div class="location-item" data-lat="${result.lat}" data-lon="${result.lon}" data-name="${result.display_name}" onclick="selectLocationFromDropdown(${i})">
+            <strong>${result.name || result.display_name}</strong>
+            <br>
+            <small style="color: #9ca3af;">${result.display_name.split(',').slice(1, 3).join(',')}</small>
+        </div>
+    `).join('');
+
+    dropdown.style.display = 'block';
+}
+
+// Select location from dropdown
+function selectLocationFromDropdown(index) {
+    const items = document.querySelectorAll('.location-item');
+    const selected = items[index];
+
+    if (selected) {
+        const lat = parseFloat(selected.dataset.lat);
+        const lon = parseFloat(selected.dataset.lon);
+        const name = selected.dataset.name;
+
+        selectLocation(lat, lon, name);
+    }
+}
+
+// Update weather and map for selected location
+function selectLocation(lat, lon, name) {
+    currentLat = lat;
+    currentLon = lon;
+
+    // Close dropdown and clear input
+    document.getElementById('location-dropdown').style.display = 'none';
+    document.getElementById('location-input').value = name.split(',')[0];
+
+    // Update location display
+    updateLocationDisplay(lat, lon);
+
+    // Center map
+    map.setView([lat, lon], 10);
+
+    // Fetch new weather
+    fetchWeather();
 }
 
 // Periodic refresh every 10 minutes
