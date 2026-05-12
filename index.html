@@ -623,6 +623,51 @@
         @media (min-width: 768px) {
             #map-wrapper.collapsed { max-height: 0; opacity: 0; }
         }
+
+        /* ── Install Banner ── */
+        .install-banner {
+            background: linear-gradient(135deg, rgba(15,28,55,0.98), rgba(8,12,20,0.98));
+            border-bottom: 1px solid rgba(245,158,11,0.25);
+            padding: 0.7rem 1.25rem;
+            display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+            animation: slideDown 0.3s ease;
+        }
+        .ib-left { display:flex; align-items:center; gap:0.65rem; }
+        .ib-left svg { color: var(--accent); width:22px; height:22px; flex-shrink:0; }
+        .ib-title { font-size:0.85rem; font-weight:600; }
+        .ib-sub   { font-size:0.72rem; color:var(--text-3); }
+        .ib-right { display:flex; align-items:center; gap:0.5rem; flex-shrink:0; }
+        .btn-install {
+            background: var(--accent); color: #000; border: none;
+            padding: 0.35rem 0.9rem; border-radius: 999px;
+            font-size: 0.8rem; font-weight: 700; cursor: pointer;
+        }
+        .btn-install:hover { background: #f0ab30; }
+        .ib-close {
+            background: none; border: none; color: var(--text-3);
+            cursor: pointer; padding: 4px; display: flex;
+        }
+        .ib-close svg { width:16px; height:16px; }
+
+        /* ── Felt Temperature ── */
+        .hero-feels { font-size:0.75rem; color:var(--text-3); margin-top:0.2rem; }
+        .hero-feels span { color:var(--text-2); }
+
+        /* ── Rain Detail Card ── */
+        .rain-status { font-size:0.875rem; color:var(--text-2); margin-bottom:0.85rem; min-height:1.2em; }
+        .rain-prob-chart { margin-bottom:0.65rem; }
+        .rain-footer {
+            display:flex; align-items:center; justify-content:space-between;
+            font-size:0.8rem; color:var(--text-2);
+            border-top:1px solid var(--card-b); padding-top:0.65rem;
+        }
+
+        /* ── Sunrise / Sunset ── */
+        .sun-row {
+            display:flex; gap:1.5rem; font-size:0.85rem; color:var(--text-2);
+            padding:0.5rem 0 0.75rem; border-bottom:1px solid var(--card-b);
+            margin-bottom:0.75rem;
+        }
     </style>
 </head>
 <body>
@@ -639,6 +684,22 @@
         </div>
     </div>
 </header>
+
+<div id="install-banner" class="install-banner hidden">
+    <div class="ib-left">
+        <i data-lucide="smartphone"></i>
+        <div>
+            <div class="ib-title">Als App speichern</div>
+            <div class="ib-sub" id="ib-subtitle">Für schnellen Zugriff installieren</div>
+        </div>
+    </div>
+    <div class="ib-right">
+        <button id="install-btn" class="btn-install">Installieren</button>
+        <button id="install-dismiss" class="ib-close" aria-label="Schließen">
+            <i data-lucide="x"></i>
+        </button>
+    </div>
+</div>
 
 <main>
     <!-- Search -->
@@ -658,6 +719,7 @@
                 <div class="hero-temp" id="temp-display">--°</div>
                 <div class="hero-desc" id="weather-description">Lädt…</div>
                 <div class="hero-range" id="temp-range">--</div>
+                <div class="hero-feels">Gefühlt: <span id="feels-like">--°</span></div>
             </div>
         </div>
         <div class="hero-right">
@@ -705,10 +767,10 @@
             </div>
         </div>
         <div class="stat-card">
-            <i data-lucide="sun"></i>
+            <i data-lucide="gauge"></i>
             <div>
-                <div class="stat-label">UV-Index</div>
-                <div class="stat-value" id="uv-stat">--</div>
+                <div class="stat-label">Luftdruck</div>
+                <div class="stat-value" id="pressure-stat">-- hPa</div>
             </div>
         </div>
         <div class="stat-card">
@@ -717,6 +779,17 @@
                 <div class="stat-label">Taupunkt</div>
                 <div class="stat-value" id="dewpoint-stat">--°C</div>
             </div>
+        </div>
+    </div>
+
+    <!-- Rain Detail -->
+    <div class="card" id="rain-detail-card">
+        <h3>Niederschlag heute</h3>
+        <div id="rain-status-line" class="rain-status"></div>
+        <div id="rain-prob-bars" class="rain-prob-chart"></div>
+        <div class="rain-footer">
+            <span>Gesamt: <strong id="rain-total-today">-- mm</strong></span>
+            <span id="rain-next-label"></span>
         </div>
     </div>
 
@@ -742,6 +815,7 @@
             <h3 id="day-detail-title"></h3>
             <button class="close-btn" id="close-day-detail"><i data-lucide="x"></i></button>
         </div>
+        <div id="day-detail-sun"></div>
         <div id="day-detail-hourly"></div>
     </div>
 

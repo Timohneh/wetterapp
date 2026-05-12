@@ -14,48 +14,6 @@ Eine moderne Progressive Web App (PWA) für deutsche Wetter-Vorhersagen mit **Mu
 - **Offline-First**: Service Worker mit Cache-Strategien
 - **Dark-Mode**: Minimalistisches, mobil-optimiertes Design
 
-## 📱 Installation
-
-### 1. GitHub Pages aktivieren (⚠️ WICHTIG!)
-**Dein Repository braucht diese Einstellungen:**
-
-1. Gehe zu **Settings → Pages**
-2. Setze **Source** auf **"GitHub Actions"**
-3. Stelle sicher, dass dein Repository **public** ist
-4. Speichere die Einstellung
-
-Danach:
-- Push deinen Code zu `main` oder `master` Branch
-- GitHub Actions startet automatisch den Pages-Deploy (Workflow muss sichtbar sein im Actions Tab)
-- Die App ist dann verfügbar unter: `https://dein-username.github.io/wetterapp/`
-
-**Detaillierte Anleitung**: Siehe [GITHUB_PAGES_SETUP.md](GITHUB_PAGES_SETUP.md)
-
-### 2. Lokal testen
-```bash
-# Mit Python
-python -m http.server 8000
-
-# Mit Node.js
-npx http-server
-```
-Öffne dann `http://localhost:8000`
-
-### 3. Auf Handy installieren
-- **Android**: Chrome → Menü → "Zum Startbildschirm hinzufügen"
-- **iOS**: Safari → Teilen → "Zum Home-Bildschirm"
-- **Desktop**: Chrome → drei Punkte → "Installieren"
-
-## 🗂️ Struktur
-
-```
-├── index.html          # Responsive HTML mit Dark-Mode UI
-├── app.js              # Multi-Model Wetter-Engine
-├── sw.js               # Service Worker (Offline)
-├── manifest.json       # PWA Manifest
-└── .github/workflows/
-    └── deploy.yml      # GitHub Pages Auto-Deploy
-```
 
 ## 🔧 Technologie-Stack
 
@@ -112,6 +70,4 @@ MIT - Frei verwendbar für private und kommerzielle Projekte
 
 Verbesserungsvorschläge, Bug-Reports und Pull Requests sind willkommen!
 
----
 
-**Made with ❤️ for German Weather Enthusiasts**

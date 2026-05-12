@@ -47,6 +47,36 @@ let cachedModels     = null;
 let cachedLongRange  = null;
 let cachedEnsemble   = null;
 let cachedGridData   = null;
+let installPrompt    = null;
+
+// ─── PWA Install ─────────────────────────────────────────────────────────────
+
+window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    installPrompt = e;
+    if (!isStandalone()) showInstallBanner('android');
+});
+window.addEventListener('appinstalled', hideInstallBanner);
+
+function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches || !!navigator.standalone;
+}
+
+function showInstallBanner(mode) {
+    if (isStandalone()) return;
+    const banner = document.getElementById('install-banner');
+    if (!banner) return;
+    if (mode === 'ios') {
+        document.getElementById('ib-subtitle').textContent = 'Tippe Teilen → „Zum Home-Bildschirm"';
+        document.getElementById('install-btn').style.display = 'none';
+    }
+    banner.classList.remove('hidden');
+    renderIcons(banner);
+}
+
+function hideInstallBanner() {
+    document.getElementById('install-banner')?.classList.add('hidden');
+}
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initMap();
     getGeolocation();
     setupEventListeners();
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    if (isIOS && !isStandalone()) showInstallBanner('ios');
 });
 
 function initLucide() {
@@ -69,7 +101,7 @@ function renderIcons(container) {
 
 function initMap() {
     map = L.map('map', { center: [51.165, 10.451], zoom: 6 });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: '© OpenStreetMap © CARTO',
         subdomains: 'abcd',
         maxZoom: 18
@@ -173,7 +205,6 @@ function setupEventListeners() {
         if (e.target.checked) {
             legend.classList.remove('hidden');
             if (!map.getContainer().querySelector('.weather-canvas')) {
-                // make sure map is expanded on mobile
                 if (isMobile() && !mapWrapper.classList.contains('expanded')) {
                     mapWrapper.classList.add('expanded');
                     mapToggleBtn.textContent = 'Karte ausblenden';
@@ -212,6 +243,16 @@ function setupEventListeners() {
     });
 
     document.getElementById('close-day-detail').addEventListener('click', closeDayDetail);
+
+    // PWA install
+    document.getElementById('install-btn')?.addEventListener('click', async () => {
+        if (!installPrompt) return;
+        installPrompt.prompt();
+        const { outcome } = await installPrompt.userChoice;
+        installPrompt = null;
+        if (outcome === 'accepted') hideInstallBanner();
+    });
+    document.getElementById('install-dismiss')?.addEventListener('click', hideInstallBanner);
 }
 
 // ─── Radar (RainViewer direkte API) ──────────────────────────────────────────
@@ -235,12 +276,9 @@ async function initRadar() {
 }
 
 // ─── Progressives Laden ───────────────────────────────────────────────────────
-//  Tier 1: aktuelle Bedingungen + 14-Tage → sofort anzeigen
-//  Tier 2: Ensemble-Spread + Grid-Overlay → im Hintergrund nachladen
 
 async function fetchWeather() {
     try {
-        // Tier 1 – kritischer Pfad
         const [models, longRange] = await Promise.all([
             fetchAllModels(),
             fetchLongRange()
@@ -252,6 +290,7 @@ async function fetchWeather() {
         const merged   = mergeModels(modelArr);
 
         displayWeather(merged, modelArr);
+        displayRainDetail(longRange);
         displayHourlyForecast(longRange, 0, 'hourly-forecast', null, null);
         displayDailyForecast(longRange, null);
         displayModelComparison(modelArr);
@@ -259,7 +298,6 @@ async function fetchWeather() {
         document.getElementById('update-time').textContent =
             new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
-        // Tier 2 – angereicherte Daten (non-blocking)
         Promise.all([
             fetchEnsembleHourly(),
             fetchWeatherGrid(),
@@ -280,7 +318,6 @@ async function fetchWeather() {
     }
 }
 
-// 5 Modelle, nur aktuelle Bedingungen (schnell, forecast_days:1)
 async function fetchAllModels() {
     const [icon, ecmwf, meteofrance, gfs, ukmo] = await Promise.all([
         fetchModel('icon_d2',              'ICON-D2 (DWD)'),
@@ -296,7 +333,8 @@ async function fetchModel(model, label) {
     const url = new URL('https://api.open-meteo.com/v1/forecast');
     url.searchParams.set('latitude',      currentLat);
     url.searchParams.set('longitude',     currentLon);
-    url.searchParams.set('current', 'temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m');
+    url.searchParams.set('current',
+        'temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m,apparent_temperature,surface_pressure');
     url.searchParams.set('models',        model);
     url.searchParams.set('timezone',      'Europe/Berlin');
     url.searchParams.set('forecast_days', '1');
@@ -311,15 +349,16 @@ async function fetchModel(model, label) {
     };
 }
 
-// best_match, 14 Tage, stündlich + täglich
 async function fetchLongRange() {
     const url = new URL('https://api.open-meteo.com/v1/forecast');
     url.searchParams.set('latitude',  currentLat);
     url.searchParams.set('longitude', currentLon);
-    url.searchParams.set('hourly',    'temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m');
+    url.searchParams.set('hourly',
+        'temperature_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m');
     url.searchParams.set('daily', [
         'temperature_2m_max', 'temperature_2m_min', 'precipitation_sum',
-        'weather_code', 'wind_speed_10m_max', 'precipitation_probability_max'
+        'weather_code', 'wind_speed_10m_max', 'precipitation_probability_max',
+        'sunrise', 'sunset'
     ].join(','));
     url.searchParams.set('timezone',      'Europe/Berlin');
     url.searchParams.set('forecast_days', '14');
@@ -328,7 +367,6 @@ async function fetchLongRange() {
     return await res.json();
 }
 
-// Stündliche Daten von 3 Modellen für Spread-Visualisierung (heute + morgen)
 async function fetchEnsembleHourly() {
     const [icon, ecmwf, gfs] = await Promise.all([
         fetchModelHourly('icon_d2'),
@@ -351,7 +389,6 @@ async function fetchModelHourly(model) {
     return await res.json();
 }
 
-// ECMWF (10d) + GFS (14d) täglich für Spread-Indikator in 14-Tage-Vorschau
 async function fetchDailyEnsemble() {
     const [ecmwf, gfs] = await Promise.all([
         fetchDailyModel('ecmwf_ifs',   10),
@@ -373,9 +410,8 @@ async function fetchDailyModel(model, days) {
     return await res.json();
 }
 
-// 5×5 Gitternetz für Karten-Overlay (Open-Meteo Bulk API)
 async function fetchWeatherGrid() {
-    const STEP = 0.55, HALF = 2;  // ~60km Abstand
+    const STEP = 0.55, HALF = 2;
     const lats = [], lons = [];
     for (let di = -HALF; di <= HALF; di++) {
         for (let dj = -HALF; dj <= HALF; dj++) {
@@ -404,13 +440,15 @@ async function fetchWeatherGrid() {
 // ─── Merge ────────────────────────────────────────────────────────────────────
 
 function mergeModels(arr) {
-    const w = { temp: 0, humidity: 0, precipitation: 0, wind: 0 };
+    const w = { temp: 0, humidity: 0, precipitation: 0, wind: 0, apparentTemp: 0, pressure: 0 };
     arr.forEach(m => {
         const wt = WEIGHTS[m.model] || 0;
         w.temp          += m.temp          * wt;
         w.humidity      += m.humidity      * wt;
         w.precipitation += m.precipitation * wt;
         w.wind          += m.wind          * wt;
+        w.apparentTemp  += (m.current?.apparent_temperature ?? m.temp) * wt;
+        w.pressure      += (m.current?.surface_pressure ?? 1013) * wt;
     });
     const temps   = arr.map(m => m.temp);
     const winds   = arr.map(m => m.wind);
@@ -420,6 +458,8 @@ function mergeModels(arr) {
     return {
         temp: Math.round(w.temp * 10) / 10, humidity: Math.round(w.humidity),
         precipitation: Math.round(w.precipitation * 10) / 10, wind: Math.round(w.wind),
+        apparentTemp: Math.round(w.apparentTemp * 10) / 10,
+        pressure: Math.round(w.pressure),
         confidence, models: arr,
         tempRange: { min: Math.min(...temps), max: Math.max(...temps) }
     };
@@ -428,12 +468,18 @@ function mergeModels(arr) {
 // ─── Display: Aktuelles Wetter ────────────────────────────────────────────────
 
 function displayWeather(data, modelArray) {
-    const { temp, humidity, precipitation, wind, confidence, tempRange } = data;
+    const { temp, humidity, precipitation, wind, confidence, tempRange, apparentTemp, pressure } = data;
     document.getElementById('temp-display').textContent          = `${temp}°`;
     document.getElementById('temp-range').textContent            = `${Math.round(tempRange.min)}° – ${Math.round(tempRange.max)}°C`;
+    document.getElementById('feels-like').textContent            = `${apparentTemp ?? Math.round(temp)}°`;
     document.getElementById('humidity-display').textContent      = `${humidity}%`;
     document.getElementById('precipitation-display').textContent = `${precipitation} mm`;
     document.getElementById('wind-display').textContent          = `${wind} km/h`;
+    document.getElementById('pressure-stat').textContent         = `${pressure ?? 1013} hPa`;
+
+    const precipProb = getCurrentPrecipProb();
+    document.getElementById('precipitation-prob').textContent =
+        precipProb !== null ? `${Math.round(precipProb)}%` : '--';
 
     const code   = modelArray[0].current.weather_code;
     const info   = WMO[code] || { icon: 'cloud', desc: 'Unbekannt' };
@@ -458,14 +504,80 @@ function displayWeather(data, modelArray) {
     else                                { trendArr.textContent = '—'; trendTxt.textContent = 'Stabil';                        trendTxt.className = 'trend-stable'; }
 
     const vis = Math.min(10, Math.round(10 / Math.max(0.1, precipitation) * 10) / 10);
-    document.getElementById('visibility-stat').textContent    = `${vis} km`;
-    document.getElementById('uv-stat').textContent            = getUVIndex(temp, humidity);
-    document.getElementById('dewpoint-stat').textContent      = `${calcDewpoint(temp, humidity).toFixed(1)}°C`;
-    document.getElementById('precipitation-prob').textContent = `${calcPrecipProb(modelArray).toFixed(0)}%`;
+    document.getElementById('visibility-stat').textContent = `${vis} km`;
+    document.getElementById('dewpoint-stat').textContent   = `${calcDewpoint(temp, humidity).toFixed(1)}°C`;
     initLucide();
 }
 
-// ─── Display: Grafischer Stundenchart (mit Ensemble-Spread-Band) ──────────────
+// ─── Display: Regen-Detail ────────────────────────────────────────────────────
+
+function displayRainDetail(longRange) {
+    const card = document.getElementById('rain-detail-card');
+    if (!card || !longRange?.hourly) return;
+
+    const nowHour = new Date().getHours();
+    const probs   = longRange.hourly.precipitation_probability?.slice(0, 24) || [];
+    const precips = longRange.hourly.precipitation?.slice(0, 24) || [];
+    const codes   = longRange.hourly.weather_code?.slice(0, 24) || [];
+
+    const currentProb = probs[nowHour] ?? 0;
+    const currentCode = codes[nowHour] ?? 0;
+    const precipType  = (currentCode >= 71 && currentCode <= 77) ? 'Schnee'
+                      : (currentCode >= 80 && currentCode <= 86) ? 'Schauer'
+                      : currentCode >= 51 ? 'Regen' : 'Niederschlag';
+
+    let nextRainLabel = 'Kein Regen erwartet';
+    for (let i = nowHour + 1; i < 24; i++) {
+        if ((probs[i] ?? 0) >= 40) {
+            nextRainLabel = `ab ${String(i).padStart(2, '0')}:00 Uhr`;
+            break;
+        }
+    }
+
+    const totalToday = precips.reduce((s, v) => s + (v ?? 0), 0);
+
+    const statusText = currentProb >= 60
+        ? `${precipType} wahrscheinlich · ${currentProb}%`
+        : currentProb >= 30
+        ? `${precipType} möglich · ${currentProb}%`
+        : currentProb > 0
+        ? `Kaum ${precipType} · ${currentProb}%`
+        : 'Kein Niederschlag erwartet';
+
+    // 24-Balken SVG-Chart (12px pro Stunde)
+    const BAR_W = 12, GAP = 2, BAR_H = 48, LABEL_H = 14;
+    const TOTAL_W = 24 * (BAR_W + GAP) - GAP;
+    const nowLineX = nowHour * (BAR_W + GAP) + BAR_W / 2;
+
+    const nowLine = `<line x1="${nowLineX.toFixed(1)}" y1="0" x2="${nowLineX.toFixed(1)}" y2="${BAR_H}"
+        stroke="rgba(245,158,11,0.45)" stroke-width="1.5" stroke-dasharray="3,2"/>`;
+
+    const bars = probs.map((p, i) => {
+        const prob  = p ?? 0;
+        const bh    = prob === 0 ? 2 : Math.max(3, (prob / 100) * (BAR_H - 6));
+        const x     = i * (BAR_W + GAP);
+        const isNow = i === nowHour;
+        const opac  = (0.2 + (prob / 100) * 0.65).toFixed(2);
+        const fill  = isNow ? 'rgba(245,158,11,0.85)' : `rgba(96,165,250,${opac})`;
+        const rx    = bh <= 2 ? 0 : 2;
+        return `<rect x="${x}" y="${BAR_H - bh}" width="${BAR_W}" height="${bh}" rx="${rx}" fill="${fill}"/>`;
+    }).join('');
+
+    const hourLabels = [0, 6, 12, 18].map(h => {
+        const x = h * (BAR_W + GAP);
+        return `<text x="${x}" y="${BAR_H + LABEL_H - 1}" text-anchor="start"
+            fill="rgba(148,163,184,0.7)" font-size="9">${String(h).padStart(2, '0')}</text>`;
+    }).join('');
+
+    document.getElementById('rain-status-line').textContent = statusText;
+    document.getElementById('rain-prob-bars').innerHTML = `<svg width="${TOTAL_W}" height="${BAR_H + LABEL_H}"
+        style="display:block;overflow:visible;font-family:-apple-system,system-ui,sans-serif">
+        ${nowLine}${bars}${hourLabels}</svg>`;
+    document.getElementById('rain-total-today').textContent = `${totalToday.toFixed(1)} mm`;
+    document.getElementById('rain-next-label').textContent  = nextRainLabel;
+}
+
+// ─── Display: Grafischer Stundenchart ─────────────────────────────────────────
 
 function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) {
     const start = dayOffset * 24;
@@ -485,7 +597,6 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
         ? times.findIndex(t => parseInt(t.slice(11, 13)) === nowHour)
         : -1;
 
-    // Temperatur-Chart-Geometrie
     const CHART_H = 104, PAD_T = 24, PAD_B = 6;
     const validT  = temps.filter(t => t != null && !isNaN(t));
     if (!validT.length) { container.innerHTML = '<p style="color:var(--text-3);font-size:0.85rem">Keine Daten</p>'; return; }
@@ -502,7 +613,6 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
         ? `<line x1="${x.toFixed(1)}" y1="0" x2="${x.toFixed(1)}" y2="${h}" stroke="${col}" stroke-width="1" stroke-dasharray="3,3"/>`
         : '';
 
-    // Ensemble Spread-Band (zwischen min/max der 3 Modelle)
     let spreadBandSVG = '';
     if (ensemble) {
         const enModels = Object.values(ensemble);
@@ -519,7 +629,6 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
         if (topPts.length >= 2) spreadBandSVG = buildSpreadBand(topPts, botPts);
     }
 
-    // Temperatur-Labels + Punkte
     const tempLabels = pts.map((p, i) =>
         `<text x="${p.x.toFixed(1)}" y="${(p.y - 6).toFixed(1)}" text-anchor="middle" fill="#e2e8f0" font-size="10" font-weight="600" font-family="-apple-system,system-ui,sans-serif">${Math.round(temps[i] ?? 0)}°</text>`
     ).join('');
@@ -542,7 +651,6 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
         ${tempLabels}
     </svg>`;
 
-    // Niederschlagsbalken
     const PREC_H   = 40;
     const precBars = probs.map((p, i) => {
         const prob = p ?? 0;
@@ -561,7 +669,6 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
         ${precBars}${precLabels}
     </svg>`;
 
-    // Icon-Zeile (Nacht-Icon für Code 0 zwischen 21-6 Uhr)
     const iconRow = times.map((t, i) => {
         const h     = parseInt(t.slice(11, 13));
         const isNow = i === nowIdx;
@@ -570,19 +677,16 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
         return `<div class="ch-icon${isNow ? ' ch-now' : ''}" style="width:${COL_W}px"><i data-lucide="${icon}"></i></div>`;
     }).join('');
 
-    // Wind-Zeile
     const windRow = winds.map((w, i) =>
         `<div class="ch-wind" style="width:${COL_W}px">${Math.round(w ?? 0)}</div>`
     ).join('');
 
-    // Zeitstempel-Zeile
     const timeRow = times.map((t, i) => {
         const h     = parseInt(t.slice(11, 13));
         const isNow = i === nowIdx;
         return `<div class="ch-time${isNow ? ' ch-now' : ''}" style="width:${COL_W}px">${String(h).padStart(2, '0')}</div>`;
     }).join('');
 
-    // Legende (ob Ensemble-Spread vorhanden)
     const spreadNote = ensemble
         ? `<span style="color:rgba(245,158,11,0.5)"><span class="cl-dot" style="background:rgba(245,158,11,0.35);width:10px;height:6px;border-radius:2px"></span>Modell-Spread</span>`
         : '';
@@ -612,7 +716,6 @@ function displayHourlyForecast(data, dayOffset, containerId, ensemble, _unused) 
     }
 }
 
-// Geschlossenes Band zwischen min/max über bezier-Kurven (beide Richtungen)
 function buildSpreadBand(topPts, botPts) {
     const n = Math.min(topPts.length, botPts.length);
     if (n < 2) return '';
@@ -620,7 +723,6 @@ function buildSpreadBand(topPts, botPts) {
 
     let d = `M ${tp[0].x.toFixed(1)},${tp[0].y.toFixed(1)}`;
     for (let i = 0; i < n - 1; i++) d += cubicSeg(tp[i], tp[i+1]);
-    // Sprung auf letzten unteren Punkt, dann rückwärts
     d += ` L ${bp[n-1].x.toFixed(1)},${bp[n-1].y.toFixed(1)}`;
     for (let i = n - 1; i > 0; i--) d += cubicSeg(bp[i], bp[i-1]);
     return `<path d="${d} Z" fill="rgba(245,158,11,0.12)" stroke="rgba(245,158,11,0.22)" stroke-width="0.5"/>`;
@@ -631,7 +733,7 @@ function cubicSeg(p0, p1) {
     return ` C ${(p0.x + dx*0.4).toFixed(1)},${p0.y.toFixed(1)} ${(p1.x - dx*0.4).toFixed(1)},${p1.y.toFixed(1)} ${p1.x.toFixed(1)},${p1.y.toFixed(1)}`;
 }
 
-// ─── Display: 14-Tage-Vorschau (mit Modell-Spread-Indikator) ─────────────────
+// ─── Display: 14-Tage-Vorschau ────────────────────────────────────────────────
 
 function displayDailyForecast(data, dailyEns) {
     const d = data.daily;
@@ -646,7 +748,6 @@ function displayDailyForecast(data, dailyEns) {
         const minT    = Math.round(d.temperature_2m_min[i] ?? 0);
         const prob    = d.precipitation_probability_max[i] ?? 0;
 
-        // Unsicherheits-Indikator aus Modell-Spread
         let spreadHtml = '';
         if (dailyEns) {
             const spread = computeDailySpread(dailyEns, i);
@@ -656,7 +757,6 @@ function displayDailyForecast(data, dailyEns) {
             }
         }
 
-        // Weiter entfernte Tage visuell ausblenden (zunehmende Unsicherheit)
         const opacity = i < 3 ? 1 : i < 7 ? 0.82 : 0.58;
 
         return `
@@ -692,13 +792,23 @@ function showDayDetail(dayIndex) {
     const clicked = document.querySelector(`.daily-item[data-day="${dayIndex}"]`);
     if (clicked) clicked.classList.add('active');
 
-    const daily   = cachedLongRange.daily;
-    const date    = new Date(daily.time[dayIndex] + 'T12:00:00');
-    const maxT    = Math.round(daily.temperature_2m_max[dayIndex] ?? 0);
-    const minT    = Math.round(daily.temperature_2m_min[dayIndex] ?? 0);
-    const label   = dayIndex === 0 ? 'Heute'
-                  : dayIndex === 1 ? 'Morgen'
-                  : `${DAY_NAMES[date.getDay()]}, ${date.getDate()}.${date.getMonth()+1}.${date.getFullYear()}`;
+    const daily  = cachedLongRange.daily;
+    const date   = new Date(daily.time[dayIndex] + 'T12:00:00');
+    const maxT   = Math.round(daily.temperature_2m_max[dayIndex] ?? 0);
+    const minT   = Math.round(daily.temperature_2m_min[dayIndex] ?? 0);
+    const label  = dayIndex === 0 ? 'Heute'
+                 : dayIndex === 1 ? 'Morgen'
+                 : `${DAY_NAMES[date.getDay()]}, ${date.getDate()}.${date.getMonth()+1}.${date.getFullYear()}`;
+
+    // Sunrise / Sunset
+    const sunrise = daily.sunrise?.[dayIndex];
+    const sunset  = daily.sunset?.[dayIndex];
+    const sunEl   = document.getElementById('day-detail-sun');
+    if (sunEl) {
+        sunEl.innerHTML = (sunrise && sunset)
+            ? `<div class="sun-row"><span>🌅 ${sunrise.slice(11, 16)}</span><span>🌇 ${sunset.slice(11, 16)}</span></div>`
+            : '';
+    }
 
     document.getElementById('day-detail-title').textContent = `${label} · ${maxT}° / ${minT}°`;
     displayHourlyForecast(cachedLongRange, dayIndex, 'day-detail-hourly',
@@ -800,7 +910,7 @@ class WeatherGridLayer {
         const W   = this._canvas.width, H = this._canvas.height;
         ctx.clearRect(0, 0, W, H);
 
-        // Pass 1: Temperatur-Heatmap-Blobs (radiale Gradienten, überlappend)
+        // Pass 1: Temperatur-Heatmap-Blobs
         this._data.forEach(pt => {
             if (pt.temp == null) return;
             const px = this._map.latLngToContainerPoint([pt.lat, pt.lon]);
@@ -817,8 +927,8 @@ class WeatherGridLayer {
             ctx.fill();
         });
 
-        // Pass 2: Labels + Wind-Pfeile (oben drauf)
-        ctx.font         = 'bold 12px -apple-system,system-ui,sans-serif';
+        // Pass 2: Pill-Labels + Wind-Pfeile (lesbar auf heller Karte)
+        ctx.font         = 'bold 11px -apple-system,system-ui,sans-serif';
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
 
@@ -827,22 +937,24 @@ class WeatherGridLayer {
             const px = this._map.latLngToContainerPoint([pt.lat, pt.lon]);
             if (px.x < -20 || px.x > W + 20 || px.y < -20 || px.y > H + 20) return;
 
-            // Temperatur mit Schatten
-            ctx.shadowColor = 'rgba(0,0,0,0.9)';
-            ctx.shadowBlur  = 5;
-            ctx.fillStyle   = 'rgba(255,255,255,0.95)';
-            ctx.fillText(`${Math.round(pt.temp)}°`, px.x, px.y);
+            const label = `${Math.round(pt.temp)}°`;
+            const tw    = ctx.measureText(label).width;
             ctx.shadowBlur  = 0;
+            ctx.shadowColor = 'transparent';
+            ctx.fillStyle   = 'rgba(255,255,255,0.92)';
+            ctx.beginPath();
+            ctx.roundRect(px.x - tw / 2 - 5, px.y - 9, tw + 10, 18, 4);
+            ctx.fill();
+            ctx.fillStyle = '#1a1a1a';
+            ctx.fillText(label, px.x, px.y);
 
-            // Wind-Pfeil (zeigt in Strömungsrichtung)
             if (pt.windDir != null && pt.windSpeed > 0.5) {
-                drawWindArrow(ctx, px.x, px.y + 15, pt.windDir, pt.windSpeed);
+                drawWindArrow(ctx, px.x, px.y + 16, pt.windDir, pt.windSpeed);
             }
         });
     }
 }
 
-// Farbmapping: -15°C = tiefblau → 0°C = cyan → 10°C = grün → 20°C = gelb → 30°C = orange → 40°C = rot
 function tempToRgb(temp) {
     const stops = [
         { t: -15, r: 15,  g: 35,  b: 230 },
@@ -864,28 +976,25 @@ function tempToRgb(temp) {
     };
 }
 
-// Wind-Pfeil: meteorologische Richtung → Bildschirmwinkel
-// fromDir=0 (Wind aus N, zieht nach S) → Pfeil zeigt nach unten
 function drawWindArrow(ctx, x, y, fromDir, speed) {
-    const angle = (fromDir + 90) * Math.PI / 180; // canvas-Winkel
+    const angle = (fromDir + 90) * Math.PI / 180;
     const len   = Math.min(22, Math.max(8, speed * 0.38 + 6));
 
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.strokeStyle = 'rgba(30,30,30,0.75)';
     ctx.lineWidth   = 1.5;
     ctx.lineCap     = 'round';
-    ctx.shadowColor = 'rgba(0,0,0,0.7)';
-    ctx.shadowBlur  = 3;
+    ctx.shadowColor = 'rgba(255,255,255,0.6)';
+    ctx.shadowBlur  = 2;
 
     ctx.beginPath();
     ctx.moveTo(0, -len / 2);
     ctx.lineTo(0,  len / 2);
     ctx.stroke();
 
-    // Pfeilspitze
     ctx.beginPath();
     ctx.moveTo(0, len / 2);
     ctx.lineTo(-3.5, len / 2 - 5);
@@ -935,7 +1044,6 @@ function selectLocation(lat, lon, name) {
     document.getElementById('location-input').value = name.split(',')[0];
     updateLocationDisplay(lat, lon);
     map.setView([lat, lon], 10);
-    // Grid neu laden bei Ortswechsel
     cachedGridData = null;
     if (weatherGridLayer) { weatherGridLayer.remove(); weatherGridLayer = null; }
     fetchWeather();
@@ -956,10 +1064,12 @@ function calcDewpoint(temp, humidity) {
     return (b * alpha) / (a - alpha);
 }
 
-function getUVIndex(temp, humidity) { return Math.min(11, Math.max(0, (temp - 10) / 5)).toFixed(1); }
-function calcPrecipProb(models) { return models.map(m => m.current.precipitation > 0 ? 80 : 20).reduce((a, b) => a + b) / models.length; }
+function getCurrentPrecipProb() {
+    if (!cachedLongRange?.hourly?.precipitation_probability) return null;
+    const h = new Date().getHours();
+    return cachedLongRange.hourly.precipitation_probability[h] ?? null;
+}
 
-// Glatte Bezier-Kurve durch Punkte
 function smoothPath(pts) {
     if (!pts || pts.length < 2) return '';
     let d = `M ${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
