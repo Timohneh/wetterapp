@@ -12,7 +12,6 @@
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-rainviewer/0.12.1/leaflet-rainviewer.min.js" defer></script>
     <script src="https://unpkg.com/lucide@latest" defer></script>
 
     <style>
@@ -560,6 +559,38 @@
 
         .error-msg { color: var(--red); font-size: 0.875rem; padding: 0.5rem 0; }
 
+        /* ── Hourly Chart ── */
+        .chart-legend {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 0.65rem;
+            font-size: 0.68rem;
+            color: var(--text-3);
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .chart-legend > span { display: flex; align-items: center; gap: 0.3rem; }
+        .cl-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .chart-outer {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255,255,255,0.08) transparent;
+        }
+        .chart-outer::-webkit-scrollbar { height: 2px; }
+        .chart-outer::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 999px; }
+        .ch-row { display: flex; }
+        .ch-icon {
+            flex-shrink: 0; text-align: center; color: var(--accent);
+            display: flex; align-items: center; justify-content: center; height: 26px;
+        }
+        .ch-icon svg { width: 16px; height: 16px; }
+        .ch-icon.ch-now { color: #fff; }
+        .ch-wind { flex-shrink: 0; text-align: center; font-size: 0.65rem; color: var(--text-3); padding: 2px 0; }
+        .ch-winds { border-top: 1px solid rgba(255,255,255,0.05); padding-top: 3px; }
+        .ch-time { flex-shrink: 0; text-align: center; font-size: 0.7rem; color: var(--text-3); padding: 3px 0; font-weight: 500; }
+        .ch-time.ch-now { color: var(--accent); font-weight: 700; }
+
         /* Mobile map collapse */
         @media (max-width: 767px) {
             #map-wrapper { max-height: 0; opacity: 0; }
@@ -671,7 +702,7 @@
     <!-- Hourly Today -->
     <div class="card">
         <h3>Heute stündlich</h3>
-        <div id="hourly-forecast" class="hourly-scroll">
+        <div id="hourly-forecast">
             <div style="color:var(--text-3);font-size:0.85rem">Lädt…</div>
         </div>
     </div>
@@ -690,7 +721,7 @@
             <h3 id="day-detail-title"></h3>
             <button class="close-btn" id="close-day-detail"><i data-lucide="x"></i></button>
         </div>
-        <div id="day-detail-hourly" class="hourly-scroll"></div>
+        <div id="day-detail-hourly"></div>
     </div>
 
     <!-- Model Comparison -->
