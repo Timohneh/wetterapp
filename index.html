@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Deutsche Wetter-PWA mit Multi-Model-Vorhersagen">
+    <meta name="theme-color" content="#1a1a1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231a1a1a' width='192' height='192'/><circle cx='96' cy='96' r='60' fill='%23fbbf24'/></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231a1a1a' width='192' height='192'/><circle cx='96' cy='96' r='60' fill='%23fbbf24'/></svg>">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-rainviewer/0.12.1/leaflet-rainviewer.min.js"></script>
+
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        body { @apply bg-gray-900 text-white font-sans antialiased; }
+        #map { @apply rounded-lg shadow-xl; }
+        .confidence-badge {
+            @apply px-3 py-1 rounded-full text-sm font-semibold;
+        }
+        .confidence-high { @apply bg-emerald-900 text-emerald-200; }
+        .confidence-medium { @apply bg-amber-900 text-amber-200; }
+        .confidence-low { @apply bg-red-900 text-red-200; }
+        .model-tag {
+            @apply inline-block px-2 py-1 rounded text-xs font-mono;
+        }
+        .spinner {
+            @apply inline-block animate-spin;
+        }
+    </style>
+
+    <title>Wetterapp Deutschland</title>
+</head>
+<body class="bg-gray-900">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-10 shadow-lg">
+            <div class="max-w-6xl mx-auto px-4 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-amber-400">Wetterapp</h1>
+                        <p class="text-xs text-gray-400">Deutschland • Multi-Modell-Vorhersage</p>
+                    </div>
+                    <div id="location-display" class="text-right text-sm text-gray-300">
+                        <div id="current-location">Lädt...</div>
+                        <div id="location-coords" class="text-xs text-gray-500"></div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-1 max-w-6xl mx-auto w-full px-4 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Panel: Weather Data -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Current Weather -->
+                <section class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h2 class="text-xl font-bold mb-4 text-amber-300">Aktuelle Vorhersage</h2>
+
+                    <!-- Confidence Score -->
+                    <div class="mb-4 p-4 bg-gray-700 rounded-lg border-l-4 border-amber-400">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-300">Vorhersage-Sicherheit</p>
+                                <p id="confidence-text" class="text-lg font-bold text-white">Berechne...</p>
+                            </div>
+                            <div id="confidence-badge" class="confidence-badge confidence-medium">
+                                <span id="confidence-value">--</span>%
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Weather Icon & Description -->
+                    <div class="flex items-center gap-4 mb-6 p-4 bg-gray-700 rounded-lg">
+                        <div id="weather-icon" class="w-16 h-16 text-amber-300"></div>
+                        <div>
+                            <p id="weather-description" class="text-lg font-semibold text-white">Lädt...</p>
+                            <p id="weather-trend" class="text-sm text-gray-300 flex items-center gap-1 mt-1">
+                                <span id="trend-arrow">—</span>
+                                <span id="trend-text">Trend wird berechnet...</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Weather Display Grid -->
+                    <div id="weather-display" class="grid grid-cols-2 gap-4">
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <p class="text-gray-400 text-sm mb-1">Temperatur</p>
+                            <p id="temp-display" class="text-3xl font-bold">--°C</p>
+                            <p id="temp-range" class="text-xs text-gray-500 mt-1">--</p>
+                            <svg id="temp-sparkline" class="w-full h-8 mt-2"></svg>
+                        </div>
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <p class="text-gray-400 text-sm mb-1">Luftfeuchte</p>
+                            <p id="humidity-display" class="text-3xl font-bold">--%</p>
+                        </div>
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <p class="text-gray-400 text-sm mb-1">Niederschlag</p>
+                            <p id="precipitation-display" class="text-3xl font-bold">--mm</p>
+                            <p id="precipitation-prob" class="text-xs text-gray-500 mt-1">Wahrscheinlichkeit: --</p>
+                        </div>
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <p class="text-gray-400 text-sm mb-1">Windgeschwindigkeit</p>
+                            <p id="wind-display" class="text-3xl font-bold">-- km/h</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Model Comparison -->
+                <section class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h2 class="text-xl font-bold mb-4 text-amber-300">Modell-Vergleich</h2>
+                    <div id="model-comparison" class="space-y-3">
+                        <div class="flex items-center gap-2">
+                            <span class="spinner">⏳</span>
+                            <span class="text-gray-400">Modelle werden geladen...</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Hourly Forecast -->
+                <section class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h2 class="text-xl font-bold mb-4 text-amber-300">Stundliche Vorhersage (nächste 24h)</h2>
+                    <div id="hourly-forecast" class="grid grid-cols-4 gap-2 overflow-x-auto pb-2">
+                        <div class="flex items-center gap-1">
+                            <span class="spinner">⏳</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Panel: Map & Radar -->
+            <div class="lg:col-span-1 space-y-6">
+                <!-- Map -->
+                <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <h2 class="text-lg font-bold mb-3 text-amber-300">Kartenansicht</h2>
+                    <div id="map" class="h-80 rounded-lg shadow-md border border-gray-700"></div>
+                </section>
+
+                <!-- Radar Controls -->
+                <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <h2 class="text-lg font-bold mb-3 text-amber-300">Regenradar</h2>
+                    <div class="space-y-3">
+                        <label class="flex items-center gap-3 cursor-pointer">
+                            <input type="checkbox" id="radar-toggle" class="w-5 h-5 rounded cursor-pointer">
+                            <span class="text-sm">Radar-Overlay aktivieren</span>
+                        </label>
+                        <div id="opacity-control" class="hidden">
+                            <label class="text-sm text-gray-400 block mb-2">Transparenz</label>
+                            <input type="range" id="radar-opacity" min="0" max="100" value="70" class="w-full">
+                            <p class="text-xs text-gray-500 mt-1">
+                                <span id="opacity-value">70</span>%
+                            </p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Quick Stats -->
+                <section class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                    <h2 class="text-lg font-bold mb-3 text-amber-300">Schnellübersicht</h2>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Sichtbarkeit</span>
+                            <span id="visibility-stat">-- km</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">UV-Index</span>
+                            <span id="uv-stat">--</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Taupunkt</span>
+                            <span id="dewpoint-stat">--°C</span>
+                        </div>
+                        <div class="flex justify-between pt-2 border-t border-gray-700">
+                            <span class="text-gray-400 text-xs">Aktualisiert</span>
+                            <span id="update-time" class="text-xs text-gray-500">--:--</span>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="bg-gray-800 border-t border-gray-700 mt-8">
+            <div class="max-w-6xl mx-auto px-4 py-4 text-center text-xs text-gray-500">
+                Datenquellen: Open-Meteo (ICON-D2, ECMWF, GFS) • RainViewer • © Leaflet
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(e => {
+                console.log('SW registration failed:', e);
+            });
+        }
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>
