@@ -657,6 +657,57 @@
             accent-color: var(--accent);
         }
 
+        .radar-player {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0;
+            margin-bottom: 0.5rem;
+        }
+
+        .radar-btn {
+            background: var(--surface);
+            border: 1px solid var(--card-b);
+            border-radius: 6px;
+            padding: 0.3rem 0.45rem;
+            cursor: pointer;
+            color: var(--text-2);
+            display: flex;
+            align-items: center;
+            transition: all 0.15s;
+            flex-shrink: 0;
+        }
+
+        .radar-btn:hover { background: var(--card-b); color: var(--accent); }
+        .radar-btn svg { width: 14px; height: 14px; }
+
+        .radar-slider {
+            flex: 1;
+            accent-color: #3b82f6;
+            cursor: pointer;
+        }
+
+        .radar-time {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-2);
+            min-width: 42px;
+            text-align: right;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        /* Location marker */
+        .location-marker { background: none; border: none; }
+        .loc-dot {
+            width: 12px;
+            height: 12px;
+            background: var(--accent);
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 0 2px rgba(245,158,11,0.4), 0 2px 6px rgba(0,0,0,0.3);
+        }
+
         #map {
             height: 380px;
             border-radius: var(--radius-sm);
@@ -1973,6 +2024,13 @@
         <div id="opacity-control" class="opacity-control hidden">
             <label>Transparenz: <strong><span id="opacity-value">70</span>%</strong></label>
             <input type="range" id="radar-opacity" min="0" max="100" value="70">
+        </div>
+        <div id="radar-player" class="radar-player hidden">
+            <button id="radar-prev" class="radar-btn" title="Vorheriger Frame"><i data-lucide="chevron-left"></i></button>
+            <button id="radar-play" class="radar-btn" title="Abspielen"><i data-lucide="play"></i></button>
+            <button id="radar-next" class="radar-btn" title="Nächster Frame"><i data-lucide="chevron-right"></i></button>
+            <input type="range" id="radar-frame-slider" class="radar-slider" min="0" max="12" value="0" step="1">
+            <span id="radar-time-label" class="radar-time">--:--</span>
         </div>
         <div id="temp-legend" class="temp-legend hidden">
             <span>−15°</span>

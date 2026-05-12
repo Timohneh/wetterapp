@@ -40,6 +40,11 @@ const COL_W = 52;
 
 let map              = null;
 let radarLayer       = null;
+let radarFrames      = [];
+let radarFrameIdx    = 0;
+let radarAnimTimer   = null;
+let radarHost        = '';
+let locationMarker   = null;
 let weatherGridLayer = null;
 let currentLat       = null;
 let currentLon       = null;
@@ -62,16 +67,12 @@ function escapeHtml(text) {
     return text.replace(/[&<>"']/g, m => map[m]);
 }
 
-function loadLocationWeather(lat, lon) {
+function loadLocationWeather(lat, lon, name = null) {
     currentLat = lat;
     currentLon = lon;
     map.setView([lat, lon], 10);
-    updateLocationDisplay(lat, lon);
+    updateLocationDisplay(lat, lon, name);
     fetchWeather();
-    if (settingsManager) {
-        settingsManager.saveLastLocation(document.getElementById('current-location').textContent, lat, lon);
-        settingsManager.updateFavoriteButton();
-    }
 }
 
 // ─── PWA Install ─────────────────────────────────────────────────────────────
@@ -161,7 +162,7 @@ function fallbackLocation() {
         if (lastLoc) {
             currentLat = lastLoc.lat;
             currentLon = lastLoc.lon;
-            updateLocationDisplay(currentLat, currentLon);
+            updateLocationDisplay(currentLat, currentLon, lastLoc.name || null);
             fetchWeather();
             return;
         }
@@ -173,14 +174,28 @@ function fallbackLocation() {
     fetchWeather();
 }
 
-function updateLocationDisplay(lat, lon) {
+function updateLocationDisplay(lat, lon, displayName = null) {
     document.getElementById('location-coords').textContent = `${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E`;
-    const regionName = resolveRegion(lat, lon);
+    const regionName = displayName ?? resolveRegion(lat, lon);
     document.getElementById('current-location').textContent = regionName;
     if (settingsManager) {
         settingsManager.saveLastLocation(regionName, lat, lon);
         settingsManager.updateFavoriteButton();
     }
+    updateLocationMarker(lat, lon);
+}
+
+function updateLocationMarker(lat, lon) {
+    if (locationMarker) { locationMarker.remove(); locationMarker = null; }
+    locationMarker = L.marker([lat, lon], {
+        icon: L.divIcon({
+            className: 'location-marker',
+            html: '<div class="loc-dot"></div>',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+        }),
+        zIndexOffset: 1000
+    }).addTo(map);
 }
 
 function resolveRegion(lat, lon) {
@@ -237,7 +252,7 @@ function setupEventListeners() {
             initRadar();
         } else {
             ctrl.classList.add('hidden');
-            if (radarLayer) { radarLayer.remove(); radarLayer = null; }
+            resetRadar();
         }
     });
 
@@ -245,6 +260,12 @@ function setupEventListeners() {
         document.getElementById('opacity-value').textContent = e.target.value;
         if (radarLayer) radarLayer.setOpacity(e.target.value / 100);
     });
+
+    // Radar player controls
+    document.getElementById('radar-prev')?.addEventListener('click', () => { pauseRadar(); showRadarFrame(radarFrameIdx - 1); });
+    document.getElementById('radar-next')?.addEventListener('click', () => { pauseRadar(); showRadarFrame(radarFrameIdx + 1); });
+    document.getElementById('radar-play')?.addEventListener('click', () => { if (radarAnimTimer) pauseRadar(); else playRadar(); });
+    document.getElementById('radar-frame-slider')?.addEventListener('input', e => { pauseRadar(); showRadarFrame(parseInt(e.target.value)); });
 
     // Temperatur & Wind Overlay
     document.getElementById('overlay-toggle').addEventListener('change', async e => {
@@ -302,24 +323,83 @@ function setupEventListeners() {
     document.getElementById('install-dismiss')?.addEventListener('click', hideInstallBanner);
 }
 
-// ─── Radar (RainViewer direkte API) ──────────────────────────────────────────
+// ─── Radar (RainViewer – animiert) ───────────────────────────────────────────
 
 async function initRadar() {
-    if (radarLayer) return;
+    if (radarFrames.length > 0) { showRadarFrame(radarFrameIdx); return; }
     try {
         const res  = await fetch('https://api.rainviewer.com/public/weather-maps.json');
         const data = await res.json();
-        const past = data.radar.past;
-        if (!past?.length) throw new Error('No frames');
-        const latest  = past[past.length - 1];
-        const tileUrl = `${data.host}${latest.path}/256/{z}/{x}/{y}/2/1_1.png`;
-        radarLayer = L.tileLayer(tileUrl, { opacity: 0.7, attribution: 'RainViewer', tileSize: 256, zIndex: 10 });
-        radarLayer.addTo(map);
+        radarHost = data.host;
+        const past    = (data.radar?.past    || []).map(f => ({ ...f, type: 'past' }));
+        const nowcast = (data.radar?.nowcast || []).slice(0, 3).map(f => ({ ...f, type: 'nowcast' }));
+        radarFrames = [...past, ...nowcast];
+        if (!radarFrames.length) throw new Error('No frames');
+
+        radarFrameIdx = past.length - 1;  // start at latest past frame
+        showRadarFrame(radarFrameIdx);
+
+        const slider = document.getElementById('radar-frame-slider');
+        if (slider) { slider.max = radarFrames.length - 1; slider.value = radarFrameIdx; }
+        document.getElementById('radar-player')?.classList.remove('hidden');
     } catch (e) {
         console.error('Radar failed:', e);
         document.getElementById('radar-toggle').checked = false;
         document.getElementById('opacity-control').classList.add('hidden');
     }
+}
+
+function showRadarFrame(idx) {
+    if (!radarFrames.length) return;
+    radarFrameIdx = Math.max(0, Math.min(idx, radarFrames.length - 1));
+    const frame   = radarFrames[radarFrameIdx];
+    const opacity = (document.getElementById('radar-opacity')?.value ?? 70) / 100;
+    const tileUrl = `${radarHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+
+    if (radarLayer) {
+        radarLayer.setUrl(tileUrl);
+    } else {
+        radarLayer = L.tileLayer(tileUrl, { opacity, attribution: 'RainViewer', tileSize: 256, zIndex: 10 });
+        radarLayer.addTo(map);
+    }
+
+    const slider = document.getElementById('radar-frame-slider');
+    if (slider) slider.value = radarFrameIdx;
+
+    const timeEl = document.getElementById('radar-time-label');
+    if (timeEl) {
+        const d = new Date(frame.time * 1000);
+        const str = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        if (frame.type === 'nowcast') {
+            timeEl.textContent = `${str} +`;
+            timeEl.style.color = 'var(--accent)';
+        } else {
+            timeEl.textContent = str;
+            timeEl.style.color = 'var(--text-2)';
+        }
+    }
+}
+
+function playRadar() {
+    if (radarAnimTimer) return;
+    const playBtn = document.getElementById('radar-play');
+    if (playBtn) { playBtn.dataset.playing = 'true'; playBtn.innerHTML = '<i data-lucide="pause"></i>'; renderIcons(playBtn); }
+    radarAnimTimer = setInterval(() => showRadarFrame((radarFrameIdx + 1) % radarFrames.length), 600);
+}
+
+function pauseRadar() {
+    clearInterval(radarAnimTimer);
+    radarAnimTimer = null;
+    const playBtn = document.getElementById('radar-play');
+    if (playBtn) { delete playBtn.dataset.playing; playBtn.innerHTML = '<i data-lucide="play"></i>'; renderIcons(playBtn); }
+}
+
+function resetRadar() {
+    pauseRadar();
+    if (radarLayer) { radarLayer.remove(); radarLayer = null; }
+    radarFrames = [];
+    radarFrameIdx = 0;
+    document.getElementById('radar-player')?.classList.add('hidden');
 }
 
 // ─── Progressives Laden ───────────────────────────────────────────────────────
@@ -1594,9 +1674,10 @@ function selectLocationItem(i) {
 
 function selectLocation(lat, lon, name) {
     currentLat = lat; currentLon = lon;
+    const cityName = name.split(',')[0].trim();
     document.getElementById('location-dropdown').classList.add('hidden');
-    document.getElementById('location-input').value = name.split(',')[0];
-    updateLocationDisplay(lat, lon);
+    document.getElementById('location-input').value = cityName;
+    updateLocationDisplay(lat, lon, cityName);
     map.setView([lat, lon], 10);
     cachedGridData = null;
     if (weatherGridLayer) { weatherGridLayer.remove(); weatherGridLayer = null; }
@@ -1893,7 +1974,7 @@ class SettingsManager {
             favoritesList.innerHTML = favorites
                 .sort((a, b) => b.timestamp - a.timestamp)
                 .map(fav => `
-                    <div class="favorite-item">
+                    <div class="favorite-item" data-lat="${fav.lat}" data-lon="${fav.lon}" data-name="${escapeHtml(fav.name)}">
                         <div class="favorite-item-info">
                             <div class="favorite-item-name">${escapeHtml(fav.name)}</div>
                             <div class="favorite-item-coords">${fav.lat.toFixed(2)}°, ${fav.lon.toFixed(2)}°</div>
@@ -1908,9 +1989,10 @@ class SettingsManager {
             document.querySelectorAll('.favorite-item').forEach(item => {
                 item.addEventListener('click', e => {
                     if (!e.target.closest('.favorite-item-remove')) {
-                        const lat = parseFloat(item.querySelector('.favorite-item-remove').dataset.lat);
-                        const lon = parseFloat(item.querySelector('.favorite-item-remove').dataset.lon);
-                        loadLocationWeather(lat, lon);
+                        const lat = parseFloat(item.dataset.lat);
+                        const lon = parseFloat(item.dataset.lon);
+                        const name = item.dataset.name || null;
+                        loadLocationWeather(lat, lon, name);
                         this.closeModal();
                     }
                 });
@@ -1953,11 +2035,11 @@ class SettingsManager {
         quickbar.innerHTML = favorites
             .sort((a, b) => b.timestamp - a.timestamp)
             .map(fav => {
-                const isActive = currentFav && 
-                                 Math.abs(fav.lat - currentFav.lat) < 0.01 && 
+                const isActive = currentFav &&
+                                 Math.abs(fav.lat - currentFav.lat) < 0.01 &&
                                  Math.abs(fav.lon - currentFav.lon) < 0.01;
                 return `
-                    <button class="favorite-quick-item ${isActive ? 'active' : ''}" data-lat="${fav.lat}" data-lon="${fav.lon}" title="${escapeHtml(fav.name)}">
+                    <button class="favorite-quick-item ${isActive ? 'active' : ''}" data-lat="${fav.lat}" data-lon="${fav.lon}" data-name="${escapeHtml(fav.name)}" title="${escapeHtml(fav.name)}">
                         <i data-lucide="${isActive ? 'star' : 'map-pin'}" style="width:14px;height:14px"></i>
                         <span>${escapeHtml(fav.name)}</span>
                     </button>
@@ -1970,7 +2052,8 @@ class SettingsManager {
             if (btn) {
                 const lat = parseFloat(btn.dataset.lat);
                 const lon = parseFloat(btn.dataset.lon);
-                loadLocationWeather(lat, lon);
+                const name = btn.dataset.name || null;
+                loadLocationWeather(lat, lon, name);
             }
         });
 
