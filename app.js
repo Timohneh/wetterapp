@@ -47,6 +47,9 @@ let radarHost        = '';
 let locationMarker   = null;
 let baseTileLayer    = null;
 let weatherGridLayer = null;
+let precipGridLayer  = null;
+let cachedPrecipGrid = null;
+let precipGridHour   = 0;
 let currentLat       = null;
 let currentLon       = null;
 let cachedModels     = null;
@@ -295,6 +298,48 @@ function setupEventListeners() {
             legend.classList.add('hidden');
             if (weatherGridLayer) { weatherGridLayer.remove(); weatherGridLayer = null; }
         }
+    });
+
+    // ICON-D2 Regen-Gitter
+    document.getElementById('precip-grid-toggle')?.addEventListener('change', async e => {
+        const ctrl = document.getElementById('precip-grid-controls');
+        if (e.target.checked) {
+            ctrl.classList.remove('hidden');
+            precipGridHour = new Date().getHours();
+            const slider = document.getElementById('precip-hour-slider');
+            if (slider) slider.value = precipGridHour;
+            updatePrecipHourLabel(precipGridHour);
+            e.target.disabled = true;
+            try {
+                if (!cachedPrecipGrid) cachedPrecipGrid = await fetchPrecipGrid();
+                if (!precipGridLayer) { precipGridLayer = new PrecipGridLayer(); precipGridLayer.addTo(map); }
+                precipGridLayer.setData(cachedPrecipGrid);
+                precipGridLayer.setHour(precipGridHour);
+            } catch (err) {
+                console.error('PrecipGrid failed:', err);
+                e.target.checked = false;
+                ctrl.classList.add('hidden');
+            } finally {
+                e.target.disabled = false;
+            }
+        } else {
+            ctrl.classList.add('hidden');
+            if (precipGridLayer) { precipGridLayer.remove(); precipGridLayer = null; }
+        }
+    });
+
+    document.getElementById('precip-hour-slider')?.addEventListener('input', e => {
+        precipGridHour = parseInt(e.target.value);
+        updatePrecipHourLabel(precipGridHour);
+        precipGridLayer?.setHour(precipGridHour);
+    });
+
+    document.getElementById('precip-hour-now')?.addEventListener('click', () => {
+        precipGridHour = new Date().getHours();
+        const slider = document.getElementById('precip-hour-slider');
+        if (slider) slider.value = precipGridHour;
+        updatePrecipHourLabel(precipGridHour);
+        precipGridLayer?.setHour(precipGridHour);
     });
 
     // Location search
@@ -568,6 +613,60 @@ async function fetchWeatherGrid() {
         windDir:   d.current?.wind_direction_10m,
         code:      d.current?.weather_code
     }));
+}
+
+async function fetchPrecipGrid() {
+    const STEP = 0.1, HALF = 5; // 11×11 = 121 points, ~11km cell width
+    const lats = [], lons = [];
+    for (let di = -HALF; di <= HALF; di++) {
+        for (let dj = -HALF; dj <= HALF; dj++) {
+            lats.push((currentLat + di * STEP).toFixed(3));
+            lons.push((currentLon + dj * STEP).toFixed(3));
+        }
+    }
+    const url = new URL('https://api.open-meteo.com/v1/forecast');
+    url.searchParams.set('latitude',  lats.join(','));
+    url.searchParams.set('longitude', lons.join(','));
+    url.searchParams.set('models',    'icon_d2');
+    url.searchParams.set('hourly',    'precipitation_probability,precipitation');
+    url.searchParams.set('timezone',  'Europe/Berlin');
+    url.searchParams.set('forecast_days', '2');
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const raw = await res.json();
+    const arr = Array.isArray(raw) ? raw : [raw];
+    return {
+        step: STEP,
+        points: arr.map((d, i) => ({
+            lat:    parseFloat(lats[i]),
+            lon:    parseFloat(lons[i]),
+            prob:   d.hourly?.precipitation_probability ?? [],
+            precip: d.hourly?.precipitation ?? [],
+            times:  d.hourly?.time ?? []
+        }))
+    };
+}
+
+function updatePrecipHourLabel(idx) {
+    const label = document.getElementById('precip-hour-label');
+    if (!label) return;
+    const times = cachedPrecipGrid?.points?.[0]?.times;
+    if (times?.[idx]) {
+        const t   = new Date(times[idx]);
+        const now = new Date();
+        const isNow    = Math.abs(t - now) < 1800000;
+        const isToday  = t.toDateString() === now.toDateString();
+        const timeStr  = t.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+        if (isNow) {
+            label.textContent = 'Jetzt';
+        } else if (isToday) {
+            label.textContent = timeStr;
+        } else {
+            label.textContent = t.toLocaleDateString('de-DE', { weekday: 'short' }) + ' ' + timeStr;
+        }
+    } else {
+        label.textContent = idx === 0 ? 'Jetzt' : `+${idx}h`;
+    }
 }
 
 // ─── Merge ────────────────────────────────────────────────────────────────────
@@ -1607,6 +1706,106 @@ class WeatherGridLayer {
     }
 }
 
+// ─── ICON-D2 Niederschlag-Gitter ─────────────────────────────────────────────
+
+class PrecipGridLayer {
+    constructor() {
+        this._canvas = null;
+        this._map    = null;
+        this._data   = null;
+        this._hour   = 0;
+        this._step   = 0.1;
+        this._drawBound   = null;
+        this._resizeBound = null;
+    }
+
+    addTo(map) {
+        this._map = map;
+        const canvas = this._canvas = document.createElement('canvas');
+        canvas.style.cssText = 'position:absolute;top:0;left:0;pointer-events:none;z-index:460;';
+        map.getContainer().appendChild(canvas);
+        const size = map.getSize();
+        canvas.width = size.x; canvas.height = size.y;
+        this._drawBound   = () => this._draw();
+        this._resizeBound = () => {
+            const s = map.getSize();
+            canvas.width = s.x; canvas.height = s.y;
+            this._draw();
+        };
+        map.on('move zoom zoomend moveend', this._drawBound);
+        map.on('resize', this._resizeBound);
+        return this;
+    }
+
+    remove() {
+        if (this._map) {
+            this._map.off('move zoom zoomend moveend', this._drawBound);
+            this._map.off('resize', this._resizeBound);
+        }
+        this._canvas?.remove();
+        this._canvas = null; this._map = null;
+    }
+
+    setData(data) {
+        this._data = data;
+        if (data?.step) this._step = data.step;
+        this._draw();
+    }
+
+    setHour(h) { this._hour = h; this._draw(); }
+
+    _draw() {
+        if (!this._canvas || !this._map || !this._data?.points?.length) return;
+        const ctx = this._canvas.getContext('2d');
+        const W = this._canvas.width, H = this._canvas.height;
+        ctx.clearRect(0, 0, W, H);
+
+        const half = this._step / 2;
+
+        this._data.points.forEach(pt => {
+            const prob = pt.prob[this._hour] ?? 0;
+            if (prob < 5) return;
+
+            const sw = this._map.latLngToContainerPoint([pt.lat - half, pt.lon - half]);
+            const ne = this._map.latLngToContainerPoint([pt.lat + half, pt.lon + half]);
+            const x  = Math.min(sw.x, ne.x);
+            const y  = Math.min(sw.y, ne.y);
+            const cw = Math.abs(ne.x - sw.x);
+            const ch = Math.abs(ne.y - sw.y);
+
+            if (x > W + 2 || x + cw < -2 || y > H + 2 || y + ch < -2) return;
+
+            // Colored fill
+            ctx.fillStyle = this._probColor(prob);
+            ctx.fillRect(x, y, cw, ch);
+
+            // Subtle grid line
+            ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+            ctx.lineWidth   = 0.5;
+            ctx.strokeRect(x, y, cw, ch);
+
+            // Percentage label when cells are big enough
+            if (cw > 30 && ch > 14) {
+                const fs = Math.min(11, Math.max(7, Math.floor(cw / 5)));
+                ctx.font         = `bold ${fs}px -apple-system,system-ui,sans-serif`;
+                ctx.textAlign    = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle    = 'rgba(255,255,255,0.92)';
+                ctx.fillText(`${prob}%`, x + cw / 2, y + ch / 2);
+            }
+        });
+    }
+
+    _probColor(prob) {
+        const a = 0.15 + (prob / 100) * 0.65;
+        if (prob < 20) return `rgba(147,197,253,${a.toFixed(2)})`;
+        if (prob < 40) return `rgba(96,165,250,${a.toFixed(2)})`;
+        if (prob < 60) return `rgba(59,130,246,${a.toFixed(2)})`;
+        if (prob < 80) return `rgba(37,99,235,${a.toFixed(2)})`;
+        return             `rgba(109,40,217,${a.toFixed(2)})`;  // violett für >80%
+    }
+}
+
 function tempToRgb(temp) {
     const stops = [
         { t: -15, r: 15,  g: 35,  b: 230 },
@@ -1697,8 +1896,13 @@ function selectLocation(lat, lon, name) {
     document.getElementById('location-input').value = cityName;
     updateLocationDisplay(lat, lon, cityName);
     map.setView([lat, lon], 10);
-    cachedGridData = null;
+    cachedGridData   = null;
+    cachedPrecipGrid = null;
     if (weatherGridLayer) { weatherGridLayer.remove(); weatherGridLayer = null; }
+    if (precipGridLayer)  { precipGridLayer.remove();  precipGridLayer = null; }
+    const pgToggle = document.getElementById('precip-grid-toggle');
+    if (pgToggle) pgToggle.checked = false;
+    document.getElementById('precip-grid-controls')?.classList.add('hidden');
     fetchWeather();
 }
 

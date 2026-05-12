@@ -1891,6 +1891,66 @@
         .pa-extra-label { color: var(--text-3); }
         .pa-extra-val { font-weight: 600; color: var(--text); }
 
+        /* ── Precip Grid Controls ── */
+        .precip-grid-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.35rem 0;
+            margin-bottom: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .pgc-label {
+            font-size: 0.78rem;
+            color: var(--text-2);
+            white-space: nowrap;
+            flex-shrink: 0;
+            min-width: 90px;
+        }
+
+        .pgc-label strong {
+            color: var(--accent);
+        }
+
+        .pgc-now-btn {
+            background: var(--accent-lo);
+            border: 1px solid rgba(245,158,11,0.3);
+            color: var(--accent);
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+
+        .pgc-now-btn:hover { background: rgba(245,158,11,0.2); }
+
+        .pgc-legend {
+            display: flex;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .pgc-leg-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-size: 0.7rem;
+            color: var(--text-3);
+        }
+
+        .pgc-swatch {
+            display: inline-block;
+            width: 14px;
+            height: 10px;
+            border-radius: 2px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
         /* ── SW Update Toast ── */
         .sw-update-toast {
             position: fixed;
@@ -2134,6 +2194,10 @@
                     <input type="checkbox" id="overlay-toggle">
                     Temp &amp; Wind
                 </label>
+                <label class="toggle-label">
+                    <input type="checkbox" id="precip-grid-toggle">
+                    Regen-Gitter
+                </label>
                 <button id="map-toggle-btn" class="btn-pill">Karte ausblenden</button>
             </div>
         </div>
@@ -2147,6 +2211,16 @@
             <button id="radar-next" class="radar-btn" title="Nächster Frame"><i data-lucide="chevron-right"></i></button>
             <input type="range" id="radar-frame-slider" class="radar-slider" min="0" max="12" value="0" step="1">
             <span id="radar-time-label" class="radar-time">--:--</span>
+        </div>
+        <div id="precip-grid-controls" class="precip-grid-controls hidden">
+            <span class="pgc-label">ICON-D2 · <strong id="precip-hour-label">Jetzt</strong></span>
+            <input type="range" id="precip-hour-slider" class="radar-slider" min="0" max="47" step="1" value="0">
+            <button id="precip-hour-now" class="pgc-now-btn">Jetzt</button>
+            <div class="pgc-legend">
+                <span class="pgc-leg-item"><span class="pgc-swatch" style="background:rgba(147,197,253,0.55)"></span>5–20%</span>
+                <span class="pgc-leg-item"><span class="pgc-swatch" style="background:rgba(59,130,246,0.65)"></span>40–60%</span>
+                <span class="pgc-leg-item"><span class="pgc-swatch" style="background:rgba(109,40,217,0.75)"></span>&gt;80%</span>
+            </div>
         </div>
         <div id="temp-legend" class="temp-legend hidden">
             <span>−15°</span>
