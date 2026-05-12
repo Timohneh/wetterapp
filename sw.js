@@ -82,10 +82,14 @@ self.addEventListener('fetch', (event) => {
                             return response;
                         }
 
-                        const responseClone = response.clone();
+                        // Clone before caching to avoid body-already-used error
+                        const responseToCache = response.clone();
                         caches.open(CACHE_NAME)
                             .then((cache) => {
-                                cache.put(request, responseClone);
+                                cache.put(request, responseToCache);
+                            })
+                            .catch(() => {
+                                // Silently fail if caching doesn't work
                             });
 
                         return response;

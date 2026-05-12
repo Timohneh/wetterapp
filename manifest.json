@@ -48,7 +48,7 @@
       "name": "Aktuelle Vorhersage",
       "short_name": "Vorhersage",
       "description": "Zeige die aktuelle Wettervorhersage",
-      "url": "./",
+      "url": "./?tab=forecast",
       "icons": [
         {
           "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%231a1a1a' width='192' height='192'/><circle cx='96' cy='96' r='60' fill='%23fbbf24'/></svg>",
@@ -56,6 +56,14 @@
           "type": "image/svg+xml"
         }
       ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 540 720'><rect fill='%231a1a1a' width='540' height='720'/><text x='270' y='360' font-size='48' fill='%23fbbf24' text-anchor='middle' dominant-baseline='middle'>Wetterapp</text></svg>",
+      "sizes": "540x720",
+      "type": "image/svg+xml",
+      "form_factor": "narrow"
     }
   ],
   "prefer_related_applications": false
