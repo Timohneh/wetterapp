@@ -96,7 +96,12 @@
         }
 
         /* ── Search ── */
-        .search-wrap { position: relative; }
+        .search-wrap { 
+            position: relative; 
+            display: flex;
+            gap: 0.6rem;
+            align-items: center;
+        }
 
         .search-box {
             display: flex;
@@ -107,6 +112,7 @@
             border-radius: var(--radius);
             padding: 0.7rem 1rem;
             transition: border-color 0.2s, box-shadow 0.2s;
+            flex: 1;
         }
 
         .search-box:focus-within {
@@ -123,6 +129,40 @@
             color: var(--text);
             font-size: 0.9rem;
             width: 100%;
+        }
+
+        /* ── Favorite Button ── */
+        .favorite-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            border: 1px solid var(--card-b);
+            border-radius: var(--radius);
+            background: var(--card);
+            color: var(--text-3);
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .favorite-btn:hover {
+            background: var(--card-hov);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .favorite-btn.active {
+            background: var(--accent-lo);
+            color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .favorite-btn svg {
+            width: 18px;
+            height: 18px;
         }
 
         .search-box input::placeholder { color: var(--text-3); }
@@ -668,6 +708,466 @@
             padding:0.5rem 0 0.75rem; border-bottom:1px solid var(--card-b);
             margin-bottom:0.75rem;
         }
+
+        /* ── Header Button ── */
+        .header-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid var(--card-b);
+            background: var(--card);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .header-btn:hover {
+            background: var(--card-hov);
+            border-color: var(--accent);
+        }
+
+        .header-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* ── Settings Modal ── */
+        .settings-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            z-index: 1000;
+            display: flex;
+            align-items: flex-end;
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        .settings-modal.hidden {
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .settings-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            cursor: pointer;
+        }
+
+        .settings-panel {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            max-height: 85vh;
+            margin: 0 auto;
+            background: var(--surface);
+            border: 1px solid var(--card-b);
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.4);
+            animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+
+        .settings-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--card-b);
+            flex-shrink: 0;
+        }
+
+        .settings-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text);
+            margin: 0;
+        }
+
+        .settings-close {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: none;
+            background: var(--card);
+            color: var(--text);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .settings-close:hover {
+            background: var(--card-hov);
+        }
+
+        .settings-close svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .settings-content {
+            overflow-y: auto;
+            flex: 1;
+            padding: 1.25rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .settings-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .settings-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+
+        .settings-section h3 {
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text);
+            margin: 0 0 0.75rem 0;
+        }
+
+        .section-hint {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-3);
+            margin-bottom: 1rem;
+        }
+
+        .settings-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .settings-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+        }
+
+        .settings-label {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .settings-label span {
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .settings-label small {
+            font-size: 0.75rem;
+            color: var(--text-3);
+        }
+
+        .settings-control {
+            display: flex;
+            align-items: center;
+        }
+
+        /* ── Theme Switcher ── */
+        .theme-switcher {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--card);
+            border: 1px solid var(--card-b);
+            border-radius: 8px;
+            padding: 0.25rem;
+        }
+
+        .theme-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+            border: none;
+            background: transparent;
+            color: var(--text-3);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .theme-btn:hover {
+            background: var(--card-hov);
+            color: var(--text);
+        }
+
+        .theme-btn.active {
+            background: var(--accent-lo);
+            color: var(--accent);
+            border: 1px solid var(--accent);
+        }
+
+        /* ── Weight Sliders ── */
+        .weight-slider {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.75rem;
+            background: var(--card);
+            border: 1px solid var(--card-b);
+            border-radius: 10px;
+        }
+
+        .weight-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .weight-header label {
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .weight-value {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--accent);
+            min-width: 40px;
+            text-align: right;
+        }
+
+        .weight-input {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: var(--card-b);
+            border: none;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .weight-input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        }
+
+        .weight-input::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.3);
+        }
+
+        .weight-input::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--accent);
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.2);
+        }
+
+        .weight-input::-moz-range-thumb:hover {
+            transform: scale(1.2);
+            box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.3);
+        }
+
+        .weight-input::-moz-range-track {
+            background: transparent;
+            border: none;
+        }
+
+        /* ── Checkboxes ── */
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
+        }
+
+        .checkbox-label:hover {
+            color: var(--accent);
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: var(--accent);
+            border-radius: 4px;
+            border: 1px solid var(--card-b);
+        }
+
+        .checkbox-label span {
+            font-size: 0.9rem;
+            color: var(--text);
+        }
+
+        /* ── Buttons ── */
+        .btn-secondary {
+            padding: 0.65rem 1.25rem;
+            border: 1px solid var(--card-b);
+            border-radius: 8px;
+            background: var(--card);
+            color: var(--text);
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .btn-secondary:hover {
+            background: var(--card-hov);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .settings-info {
+            padding: 1rem;
+            background: var(--card);
+            border: 1px solid var(--card-b);
+            border-radius: 10px;
+            font-size: 0.8rem;
+            color: var(--text-2);
+            line-height: 1.6;
+        }
+
+        .settings-info p {
+            margin: 0.5rem 0;
+        }
+
+        /* ── Favorites ── */
+        .favorites-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .favorite-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            background: var(--card);
+            border: 1px solid var(--card-b);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .favorite-item:hover {
+            background: var(--card-hov);
+            border-color: var(--accent);
+        }
+
+        .favorite-item-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
+            flex: 1;
+        }
+
+        .favorite-item-name {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .favorite-item-coords {
+            font-size: 0.7rem;
+            color: var(--text-3);
+        }
+
+        .favorite-item-remove {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: var(--text-3);
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s;
+            margin-left: 0.5rem;
+        }
+
+        .favorite-item-remove:hover {
+            background: var(--red);
+            opacity: 0.2;
+            color: var(--red);
+        }
+
+        .favorite-item-remove svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .favorites-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.75rem;
+            padding: 2rem 1rem;
+            text-align: center;
+        }
+
+        .favorites-empty p {
+            font-size: 0.85rem;
+            color: var(--text-3);
+            margin: 0;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 500px) {
+            .settings-panel {
+                max-width: 100%;
+                border-radius: 16px 16px 0 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -682,6 +1182,9 @@
             <div class="city" id="current-location">Lädt…</div>
             <div class="coords" id="location-coords"></div>
         </div>
+        <button id="settings-btn" class="header-btn" aria-label="Einstellungen">
+            <i data-lucide="settings"></i>
+        </button>
     </div>
 </header>
 
@@ -708,6 +1211,9 @@
             <i data-lucide="search"></i>
             <input type="text" id="location-input" placeholder="Stadt oder Ort suchen…" autocomplete="off">
         </div>
+        <button id="favorite-btn" class="favorite-btn" aria-label="Zu Favoriten hinzufügen" title="Zu Favoriten hinzufügen">
+            <i data-lucide="star" style="width:18px;height:18px"></i>
+        </button>
         <div id="location-dropdown" class="dropdown hidden"></div>
     </div>
 
@@ -861,6 +1367,165 @@
 <footer>
     Open-Meteo · OpenStreetMap · RainViewer &nbsp;·&nbsp; Aktualisiert: <span id="update-time">--:--</span>
 </footer>
+
+<script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+</script>
+
+<!-- Settings Modal -->
+<div id="settings-modal" class="settings-modal hidden">
+    <div class="settings-overlay"></div>
+    <div class="settings-panel">
+        <div class="settings-header">
+            <h2>Einstellungen</h2>
+            <button id="settings-close" class="settings-close" aria-label="Schließen">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+
+        <div class="settings-content">
+            <!-- Erscheinungsbild -->
+            <div class="settings-section">
+                <h3>Erscheinungsbild</h3>
+                <div class="settings-group">
+                    <div class="settings-row">
+                        <div class="settings-label">
+                            <span>Farbmodus</span>
+                            <small>Wechsel zwischen hellem und dunklem Modus</small>
+                        </div>
+                        <div class="settings-control">
+                            <div class="theme-switcher">
+                                <button id="theme-light-btn" class="theme-btn" data-theme="light" title="Light Mode">
+                                    <i data-lucide="sun" style="width:18px;height:18px"></i>
+                                </button>
+                                <button id="theme-dark-btn" class="theme-btn active" data-theme="dark" title="Dark Mode">
+                                    <i data-lucide="moon" style="width:18px;height:18px"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modellgewichtungen -->
+            <div class="settings-section">
+                <h3>Modellgewichtungen</h3>
+                <small class="section-hint">Passe die Gewichtung der Wettermodelle für die Ensemble-Vorhersage an</small>
+                <div class="settings-group">
+                    <div class="weight-slider">
+                        <div class="weight-header">
+                            <label for="weight-icon-d2">Icon-D2</label>
+                            <span class="weight-value" id="weight-icon-d2-value">35%</span>
+                        </div>
+                        <input type="range" id="weight-icon-d2" min="0" max="100" value="35" class="weight-input">
+                    </div>
+
+                    <div class="weight-slider">
+                        <div class="weight-header">
+                            <label for="weight-ecmwf">ECMWF IFS</label>
+                            <span class="weight-value" id="weight-ecmwf-value">25%</span>
+                        </div>
+                        <input type="range" id="weight-ecmwf" min="0" max="100" value="25" class="weight-input">
+                    </div>
+
+                    <div class="weight-slider">
+                        <div class="weight-header">
+                            <label for="weight-meteofrance">Meteo France</label>
+                            <span class="weight-value" id="weight-meteofrance-value">20%</span>
+                        </div>
+                        <input type="range" id="weight-meteofrance" min="0" max="100" value="20" class="weight-input">
+                    </div>
+
+                    <div class="weight-slider">
+                        <div class="weight-header">
+                            <label for="weight-gfs">GFS</label>
+                            <span class="weight-value" id="weight-gfs-value">12%</span>
+                        </div>
+                        <input type="range" id="weight-gfs" min="0" max="100" value="12" class="weight-input">
+                    </div>
+
+                    <div class="weight-slider">
+                        <div class="weight-header">
+                            <label for="weight-ukmo">UKMO</label>
+                            <span class="weight-value" id="weight-ukmo-value">8%</span>
+                        </div>
+                        <input type="range" id="weight-ukmo" min="0" max="100" value="8" class="weight-input">
+                    </div>
+
+                    <button id="weight-reset-btn" class="btn-secondary">Auf Standard zurücksetzen</button>
+                </div>
+            </div>
+
+            <!-- Anzeigedetails -->
+            <div class="settings-section">
+                <h3>Anzeigedetails</h3>
+                <small class="section-hint">Bestimme, welche Informationen angezeigt werden</small>
+                <div class="settings-group">
+                    <div class="settings-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-feels-like" class="detail-checkbox" checked>
+                            <span>Gefühlte Temperatur</span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-wind-speed" class="detail-checkbox" checked>
+                            <span>Windgeschwindigkeit</span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-humidity" class="detail-checkbox" checked>
+                            <span>Luftfeuchte</span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-precipitation" class="detail-checkbox" checked>
+                            <span>Niederschlag</span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-visibility" class="detail-checkbox" checked>
+                            <span>Sichtweite</span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="show-pressure" class="detail-checkbox" checked>
+                            <span>Luftdruck</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Favoriten -->
+            <div class="settings-section">
+                <h3>Favoriten</h3>
+                <small class="section-hint">Speichere deine Lieblingsorte für schnellen Zugriff</small>
+                <div class="settings-group">
+                    <div id="favorites-list" class="favorites-list"></div>
+                    <div class="favorites-empty" id="favorites-empty">
+                        <i data-lucide="star" style="width:32px;height:32px;opacity:0.3"></i>
+                        <p>Keine Favoriten hinzugefügt</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Info -->
+            <div class="settings-section">
+                <h3>Info</h3>
+                <div class="settings-info">
+                    <p>Version 1.0</p>
+                    <p>Datenquellen: Open-Meteo, OpenStreetMap, RainViewer</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <script>
     if ('serviceWorker' in navigator) {

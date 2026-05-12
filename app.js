@@ -49,6 +49,31 @@ let cachedEnsemble   = null;
 let cachedGridData   = null;
 let installPrompt    = null;
 
+// ─── Helper Functions ────────────────────────────────────────────────────────
+
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+function loadLocationWeather(lat, lon) {
+    currentLat = lat;
+    currentLon = lon;
+    map.setView([lat, lon], 10);
+    updateLocationDisplay(lat, lon);
+    fetchWeather();
+    if (settingsManager) {
+        settingsManager.saveLastLocation(document.getElementById('current-location').textContent, lat, lon);
+        settingsManager.updateFavoriteButton();
+    }
+}
+
 // ─── PWA Install ─────────────────────────────────────────────────────────────
 
 window.addEventListener('beforeinstallprompt', e => {
@@ -83,6 +108,10 @@ function hideInstallBanner() {
 document.addEventListener('DOMContentLoaded', () => {
     initLucide();
     initMap();
+    // Initialize settings early to load last location
+    if (!settingsManager) {
+        settingsManager = new SettingsManager();
+    }
     getGeolocation();
     setupEventListeners();
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -126,6 +155,19 @@ function getGeolocation() {
 }
 
 function fallbackLocation() {
+    // Try to load last location from settings
+    if (settingsManager) {
+        const lastLoc = settingsManager.loadLastLocation();
+        if (lastLoc) {
+            currentLat = lastLoc.lat;
+            currentLon = lastLoc.lon;
+            updateLocationDisplay(currentLat, currentLon);
+            fetchWeather();
+            return;
+        }
+    }
+    
+    // Use default location
     currentLat = 51.165; currentLon = 10.451;
     updateLocationDisplay(currentLat, currentLon);
     fetchWeather();
@@ -133,7 +175,12 @@ function fallbackLocation() {
 
 function updateLocationDisplay(lat, lon) {
     document.getElementById('location-coords').textContent = `${lat.toFixed(2)}°N, ${lon.toFixed(2)}°E`;
-    document.getElementById('current-location').textContent = resolveRegion(lat, lon);
+    const regionName = resolveRegion(lat, lon);
+    document.getElementById('current-location').textContent = regionName;
+    if (settingsManager) {
+        settingsManager.saveLastLocation(regionName, lat, lon);
+        settingsManager.updateFavoriteButton();
+    }
 }
 
 function resolveRegion(lat, lon) {
@@ -1076,6 +1123,340 @@ function smoothPath(pts) {
     for (let i = 0; i < pts.length - 1; i++) d += cubicSeg(pts[i], pts[i+1]);
     return d;
 }
+
+// ─── Settings ───────────────────────────────────────────────────────────────
+
+const DEFAULT_WEIGHTS = {
+    icon_d2:              0.35,
+    ecmwf_ifs:            0.25,
+    meteofrance_seamless: 0.20,
+    gfs_seamless:         0.12,
+    ukmo_seamless:        0.08
+};
+
+const DEFAULT_DISPLAY_DETAILS = {
+    shows_feels_like: true,
+    shows_wind_speed: true,
+    shows_humidity: true,
+    shows_precipitation: true,
+    shows_visibility: true,
+    shows_pressure: true
+};
+
+class SettingsManager {
+    constructor() {
+        this.theme = this.loadTheme();
+        this.weights = this.loadWeights();
+        this.displayDetails = this.loadDisplayDetails();
+        this.init();
+    }
+
+    init() {
+        // Theme init
+        this.applyTheme(this.theme);
+        const themeButtons = document.querySelectorAll('.theme-btn');
+        themeButtons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === this.theme);
+            btn.addEventListener('click', () => this.setTheme(btn.dataset.theme));
+        });
+
+        // Weight sliders
+        const weightInputs = {
+            'weight-icon-d2': 'icon_d2',
+            'weight-ecmwf': 'ecmwf_ifs',
+            'weight-meteofrance': 'meteofrance_seamless',
+            'weight-gfs': 'gfs_seamless',
+            'weight-ukmo': 'ukmo_seamless'
+        };
+
+        Object.entries(weightInputs).forEach(([inputId, key]) => {
+            const input = document.getElementById(inputId);
+            if (input) {
+                input.value = Math.round(this.weights[key] * 100);
+                input.addEventListener('input', e => this.setWeight(key, parseFloat(e.target.value) / 100));
+            }
+        });
+
+        // Display detail checkboxes
+        const detailCheckboxes = {
+            'show-feels-like': 'shows_feels_like',
+            'show-wind-speed': 'shows_wind_speed',
+            'show-humidity': 'shows_humidity',
+            'show-precipitation': 'shows_precipitation',
+            'show-visibility': 'shows_visibility',
+            'show-pressure': 'shows_pressure'
+        };
+
+        Object.entries(detailCheckboxes).forEach(([checkboxId, key]) => {
+            const checkbox = document.getElementById(checkboxId);
+            if (checkbox) {
+                checkbox.checked = this.displayDetails[key];
+                checkbox.addEventListener('change', e => this.setDisplayDetail(key, e.target.checked));
+            }
+        });
+
+        // Reset button
+        document.getElementById('weight-reset-btn')?.addEventListener('click', () => this.resetWeights());
+
+        // Modal controls
+        document.getElementById('settings-btn')?.addEventListener('click', () => this.openModal());
+        document.getElementById('settings-close')?.addEventListener('click', () => this.closeModal());
+        document.querySelector('.settings-overlay')?.addEventListener('click', () => this.closeModal());
+
+        // Prevent modal close on content click
+        document.querySelector('.settings-panel')?.addEventListener('click', e => e.stopPropagation());
+
+        // Favorite button
+        document.getElementById('favorite-btn')?.addEventListener('click', () => this.toggleCurrentFavorite());
+
+        // Update WEIGHTS global when modal is closed
+        this.syncWeightsToGlobal();
+    }
+
+    loadTheme() {
+        return localStorage.getItem('weather_theme') || 'dark';
+    }
+
+    setTheme(theme) {
+        this.theme = theme;
+        localStorage.setItem('weather_theme', theme);
+        this.applyTheme(theme);
+
+        // Update button states
+        document.querySelectorAll('.theme-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.theme === theme);
+        });
+    }
+
+    applyTheme(theme) {
+        const isDark = theme === 'dark';
+        const root = document.documentElement;
+
+        if (isDark) {
+            root.style.setProperty('--bg', '#080c14');
+            root.style.setProperty('--surface', '#0f1623');
+            root.style.setProperty('--card', 'rgba(255,255,255,0.034)');
+            root.style.setProperty('--card-b', 'rgba(255,255,255,0.07)');
+            root.style.setProperty('--card-hov', 'rgba(255,255,255,0.06)');
+            root.style.setProperty('--text', '#f1f5f9');
+            root.style.setProperty('--text-2', '#94a3b8');
+            root.style.setProperty('--text-3', '#475569');
+            document.body.style.backgroundColor = '#080c14';
+        } else {
+            root.style.setProperty('--bg', '#f8f9fa');
+            root.style.setProperty('--surface', '#ffffff');
+            root.style.setProperty('--card', 'rgba(0,0,0,0.04)');
+            root.style.setProperty('--card-b', 'rgba(0,0,0,0.08)');
+            root.style.setProperty('--card-hov', 'rgba(0,0,0,0.06)');
+            root.style.setProperty('--text', '#1e293b');
+            root.style.setProperty('--text-2', '#64748b');
+            root.style.setProperty('--text-3', '#94a3b8');
+            document.body.style.backgroundColor = '#f8f9fa';
+        }
+    }
+
+    loadWeights() {
+        const saved = localStorage.getItem('weather_weights');
+        return saved ? JSON.parse(saved) : { ...DEFAULT_WEIGHTS };
+    }
+
+    setWeight(key, value) {
+        this.weights[key] = value;
+        localStorage.setItem('weather_weights', JSON.stringify(this.weights));
+        
+        // Update display
+        const valueSpans = {
+            'icon_d2': 'weight-icon-d2-value',
+            'ecmwf_ifs': 'weight-ecmwf-value',
+            'meteofrance_seamless': 'weight-meteofrance-value',
+            'gfs_seamless': 'weight-gfs-value',
+            'ukmo_seamless': 'weight-ukmo-value'
+        };
+        
+        const spanId = valueSpans[key];
+        if (spanId) {
+            document.getElementById(spanId).textContent = Math.round(value * 100) + '%';
+        }
+
+        this.syncWeightsToGlobal();
+    }
+
+    resetWeights() {
+        this.weights = { ...DEFAULT_WEIGHTS };
+        localStorage.setItem('weather_weights', JSON.stringify(this.weights));
+
+        // Update all sliders
+        const weightInputs = {
+            'weight-icon-d2': 'icon_d2',
+            'weight-ecmwf': 'ecmwf_ifs',
+            'weight-meteofrance': 'meteofrance_seamless',
+            'weight-gfs': 'gfs_seamless',
+            'weight-ukmo': 'ukmo_seamless'
+        };
+
+        Object.entries(weightInputs).forEach(([inputId, key]) => {
+            const input = document.getElementById(inputId);
+            const valueSpan = document.getElementById(inputId + '-value');
+            if (input && valueSpan) {
+                const percent = Math.round(this.weights[key] * 100);
+                input.value = percent;
+                valueSpan.textContent = percent + '%';
+            }
+        });
+
+        this.syncWeightsToGlobal();
+    }
+
+    syncWeightsToGlobal() {
+        // Update the global WEIGHTS object for use in forecast calculations
+        Object.assign(WEIGHTS, this.weights);
+    }
+
+    loadDisplayDetails() {
+        const saved = localStorage.getItem('weather_display_details');
+        return saved ? JSON.parse(saved) : { ...DEFAULT_DISPLAY_DETAILS };
+    }
+
+    setDisplayDetail(key, value) {
+        this.displayDetails[key] = value;
+        localStorage.setItem('weather_display_details', JSON.stringify(this.displayDetails));
+    }
+
+    // Favorites Management
+    loadFavorites() {
+        const saved = localStorage.getItem('weather_favorites');
+        return saved ? JSON.parse(saved) : [];
+    }
+
+    saveFavorites(favorites) {
+        localStorage.setItem('weather_favorites', JSON.stringify(favorites));
+    }
+
+    addFavorite(name, lat, lon) {
+        const favorites = this.loadFavorites();
+        const exists = favorites.some(f => f.lat === lat && f.lon === lon);
+        if (!exists) {
+            favorites.push({ name, lat, lon, timestamp: Date.now() });
+            this.saveFavorites(favorites);
+            this.updateFavoritesUI();
+        }
+    }
+
+    removeFavorite(lat, lon) {
+        let favorites = this.loadFavorites();
+        favorites = favorites.filter(f => !(f.lat === lat && f.lon === lon));
+        this.saveFavorites(favorites);
+        this.updateFavoritesUI();
+    }
+
+    isFavorite(lat, lon) {
+        const favorites = this.loadFavorites();
+        return favorites.some(f => f.lat === lat && f.lon === lon);
+    }
+
+    updateFavoritesUI() {
+        const favorites = this.loadFavorites();
+        const favoritesList = document.getElementById('favorites-list');
+        const favoritesEmpty = document.getElementById('favorites-empty');
+
+        if (!favoritesList) return;
+
+        if (favorites.length === 0) {
+            favoritesList.innerHTML = '';
+            favoritesEmpty.style.display = 'flex';
+        } else {
+            favoritesEmpty.style.display = 'none';
+            favoritesList.innerHTML = favorites
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .map(fav => `
+                    <div class="favorite-item">
+                        <div class="favorite-item-info">
+                            <div class="favorite-item-name">${escapeHtml(fav.name)}</div>
+                            <div class="favorite-item-coords">${fav.lat.toFixed(2)}°, ${fav.lon.toFixed(2)}°</div>
+                        </div>
+                        <button class="favorite-item-remove" data-lat="${fav.lat}" data-lon="${fav.lon}" title="Entfernen">
+                            <i data-lucide="x"></i>
+                        </button>
+                    </div>
+                `).join('');
+
+            // Add event listeners for favorite items
+            document.querySelectorAll('.favorite-item').forEach(item => {
+                item.addEventListener('click', e => {
+                    if (!e.target.closest('.favorite-item-remove')) {
+                        const lat = parseFloat(item.querySelector('.favorite-item-remove').dataset.lat);
+                        const lon = parseFloat(item.querySelector('.favorite-item-remove').dataset.lon);
+                        loadLocationWeather(lat, lon);
+                        this.closeModal();
+                    }
+                });
+            });
+
+            // Add event listeners for remove buttons
+            document.querySelectorAll('.favorite-item-remove').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const lat = parseFloat(btn.dataset.lat);
+                    const lon = parseFloat(btn.dataset.lon);
+                    this.removeFavorite(lat, lon);
+                });
+            });
+
+            // Re-render lucide icons in favorites section
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons({ nodes: [favoritesList] });
+            }
+        }
+    }
+
+    openModal() {
+        document.getElementById('settings-modal')?.classList.remove('hidden');
+        this.updateFavoritesUI();
+    }
+
+    toggleCurrentFavorite() {
+        if (!currentLat || !currentLon) return;
+        
+        const isFav = this.isFavorite(currentLat, currentLon);
+        if (isFav) {
+            this.removeFavorite(currentLat, currentLon);
+        } else {
+            const locationName = document.getElementById('current-location').textContent || 'Gespeicherter Ort';
+            this.addFavorite(locationName, currentLat, currentLon);
+        }
+        this.updateFavoriteButton();
+    }
+
+    updateFavoriteButton() {
+        const btn = document.getElementById('favorite-btn');
+        if (!btn) return;
+        
+        if (currentLat && currentLon && this.isFavorite(currentLat, currentLon)) {
+            btn.classList.add('active');
+            btn.setAttribute('title', 'Aus Favoriten entfernen');
+        } else {
+            btn.classList.remove('active');
+            btn.setAttribute('title', 'Zu Favoriten hinzufügen');
+        }
+    }
+
+    // Last location tracking
+    saveLastLocation(name, lat, lon) {
+        localStorage.setItem('weather_last_location', JSON.stringify({ name, lat, lon, timestamp: Date.now() }));
+    }
+
+    loadLastLocation() {
+        const saved = localStorage.getItem('weather_last_location');
+        return saved ? JSON.parse(saved) : null;
+    }
+
+    closeModal() {
+        document.getElementById('settings-modal')?.classList.add('hidden');
+    }
+}
+
+// Settings manager instance (initialized in setupEventListeners)
+let settingsManager = null;
 
 // ─── Auto-Refresh ─────────────────────────────────────────────────────────────
 
