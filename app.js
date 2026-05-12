@@ -45,6 +45,7 @@ let radarFrameIdx    = 0;
 let radarAnimTimer   = null;
 let radarHost        = '';
 let locationMarker   = null;
+let baseTileLayer    = null;
 let weatherGridLayer = null;
 let currentLat       = null;
 let currentLon       = null;
@@ -131,11 +132,13 @@ function renderIcons(container) {
 
 function initMap() {
     map = L.map('map', { center: [51.165, 10.451], zoom: 6 });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        attribution: '© OpenStreetMap © CARTO',
-        subdomains: 'abcd',
-        maxZoom: 18
-    }).addTo(map);
+    const isDark = (localStorage.getItem('weather_theme') || 'dark') === 'dark';
+    baseTileLayer = L.tileLayer(
+        isDark
+            ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_matter/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+        { attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 18 }
+    ).addTo(map);
     L.control.scale().addTo(map);
 }
 
@@ -1836,28 +1839,40 @@ class SettingsManager {
         root.setAttribute('data-theme', theme);
 
         if (isDark) {
-            root.style.setProperty('--bg', '#080c14');
-            root.style.setProperty('--surface', '#0f1623');
-            root.style.setProperty('--card', 'rgba(255,255,255,0.034)');
-            root.style.setProperty('--card-b', 'rgba(255,255,255,0.07)');
-            root.style.setProperty('--card-hov', 'rgba(255,255,255,0.06)');
+            root.style.setProperty('--bg',        '#080c14');
+            root.style.setProperty('--surface',   '#0f1623');
+            root.style.setProperty('--card',      'rgba(255,255,255,0.034)');
+            root.style.setProperty('--card-b',    'rgba(255,255,255,0.07)');
+            root.style.setProperty('--card-hov',  'rgba(255,255,255,0.06)');
             root.style.setProperty('--header-bg', 'rgba(8,12,20,0.85)');
-            root.style.setProperty('--text', '#f1f5f9');
-            root.style.setProperty('--text-2', '#94a3b8');
-            root.style.setProperty('--text-3', '#475569');
-            document.body.style.backgroundColor = '#080c14';
+            root.style.setProperty('--text',      '#f1f5f9');
+            root.style.setProperty('--text-2',    '#94a3b8');
+            root.style.setProperty('--text-3',    '#475569');
+            document.body.style.backgroundColor  = '#080c14';
+            document.body.style.backgroundImage  = 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(15,30,60,0.8) 0%, transparent 70%)';
         } else {
-            root.style.setProperty('--bg', '#ffffff');
-            root.style.setProperty('--surface', '#f1f5f9');
-            root.style.setProperty('--card', '#f9fafb');
-            root.style.setProperty('--card-b', '#e2e8f0');
-            root.style.setProperty('--card-hov', '#f3f4f6');
-            root.style.setProperty('--header-bg', 'rgba(255,255,255,0.92)');
-            root.style.setProperty('--text', '#0f172a');
-            root.style.setProperty('--text-2', '#475569');
-            root.style.setProperty('--text-3', '#64748b');
-            document.body.style.backgroundColor = '#ffffff';
+            root.style.setProperty('--bg',        '#edf2f7');
+            root.style.setProperty('--surface',   '#ffffff');
+            root.style.setProperty('--card',      'rgba(0,0,0,0.03)');
+            root.style.setProperty('--card-b',    'rgba(0,0,0,0.1)');
+            root.style.setProperty('--card-hov',  'rgba(0,0,0,0.06)');
+            root.style.setProperty('--header-bg', 'rgba(237,242,247,0.93)');
+            root.style.setProperty('--text',      '#0f172a');
+            root.style.setProperty('--text-2',    '#475569');
+            root.style.setProperty('--text-3',    '#94a3b8');
+            document.body.style.backgroundColor  = '#edf2f7';
+            document.body.style.backgroundImage  = 'none';
         }
+
+        // Swap map base tiles
+        const tileUrl = isDark
+            ? 'https://{s}.basemaps.cartocdn.com/rastertiles/dark_matter/{z}/{x}/{y}{r}.png'
+            : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+        if (baseTileLayer) baseTileLayer.setUrl(tileUrl);
+
+        // Update PWA theme color
+        document.querySelector('meta[name="theme-color"]')
+            ?.setAttribute('content', isDark ? '#080c14' : '#edf2f7');
     }
 
     loadWeights() {
