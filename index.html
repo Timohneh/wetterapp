@@ -591,6 +591,27 @@
         .ch-time { flex-shrink: 0; text-align: center; font-size: 0.7rem; color: var(--text-3); padding: 3px 0; font-weight: 500; }
         .ch-time.ch-now { color: var(--accent); font-weight: 700; }
 
+        /* ── Modell-Spread im täglichen Forecast ── */
+        .d-spread { font-size: 0.65rem; margin-left: 0.2rem; }
+
+        /* ── Temperatur-Legende für Karten-Overlay ── */
+        .temp-legend {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.6rem 0 0.75rem;
+            font-size: 0.7rem;
+            color: var(--text-3);
+        }
+        .temp-legend-bar {
+            flex: 1;
+            height: 5px;
+            border-radius: 999px;
+            background: linear-gradient(to right,
+                rgb(15,35,230), rgb(30,175,225), rgb(55,210,80),
+                rgb(240,220,35), rgb(255,100,10), rgb(200,20,20));
+        }
+
         /* Mobile map collapse */
         @media (max-width: 767px) {
             #map-wrapper { max-height: 0; opacity: 0; }
@@ -739,7 +760,11 @@
             <div class="map-controls">
                 <label class="toggle-label">
                     <input type="checkbox" id="radar-toggle">
-                    Regenradar
+                    Radar
+                </label>
+                <label class="toggle-label">
+                    <input type="checkbox" id="overlay-toggle">
+                    Temp &amp; Wind
                 </label>
                 <button id="map-toggle-btn" class="btn-pill">Karte ausblenden</button>
             </div>
@@ -747,6 +772,11 @@
         <div id="opacity-control" class="opacity-control hidden">
             <label>Transparenz: <strong><span id="opacity-value">70</span>%</strong></label>
             <input type="range" id="radar-opacity" min="0" max="100" value="70">
+        </div>
+        <div id="temp-legend" class="temp-legend hidden">
+            <span>−15°</span>
+            <div class="temp-legend-bar"></div>
+            <span>+40°</span>
         </div>
         <div id="map-wrapper">
             <div id="map"></div>

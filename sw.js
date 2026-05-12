@@ -1,4 +1,4 @@
-const CACHE_NAME = 'wetterapp-v4';
+const CACHE_NAME = 'wetterapp-v5';
 const URLS_TO_CACHE = [
     '/',
     '/index.html',
