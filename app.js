@@ -590,7 +590,7 @@ async function fetchDailyModel(model, days) {
     const url = new URL('https://api.open-meteo.com/v1/forecast');
     url.searchParams.set('latitude',      currentLat);
     url.searchParams.set('longitude',     currentLon);
-    url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min');
+    url.searchParams.set('daily', 'temperature_2m_max,temperature_2m_min,precipitation_sum');
     url.searchParams.set('models',        model);
     url.searchParams.set('timezone',      'Europe/Berlin');
     url.searchParams.set('forecast_days', String(days));
@@ -716,13 +716,26 @@ function displayWeather(data, modelArray) {
     document.getElementById('temp-range').textContent            = `${Math.round(tempRange.min)}° – ${Math.round(tempRange.max)}°C`;
     document.getElementById('feels-like').textContent            = `${apparentTemp ?? Math.round(temp)}°`;
     document.getElementById('humidity-display').textContent      = `${humidity}%`;
-    document.getElementById('precipitation-display').textContent = `${precipitation} mm`;
-    document.getElementById('wind-display').textContent          = `${wind} km/h`;
-    document.getElementById('pressure-stat').textContent         = `${pressure ?? 1013} hPa`;
+    // Niederschlag + Modell-Streuung
+    const precipVals   = modelArray.map(m => m.precipitation).filter(v => v != null && !isNaN(v));
+    const precipSpread = precipVals.length >= 2
+        ? ((Math.max(...precipVals) - Math.min(...precipVals)) / 2).toFixed(1)
+        : null;
+    document.getElementById('precipitation-display').textContent =
+        precipSpread > 0 ? `${precipitation} mm` : `${precipitation} mm`;
+    const precipSubEl = document.getElementById('precipitation-prob');
+    const precipProb  = getCurrentPrecipProb();
+    const probStr     = precipProb !== null ? `${Math.round(precipProb)}%` : '--';
+    const spreadStr   = precipSpread > 0 ? ` ±${precipSpread}` : '';
+    precipSubEl.textContent = `${probStr}${spreadStr}`;
 
-    const precipProb = getCurrentPrecipProb();
-    document.getElementById('precipitation-prob').textContent =
-        precipProb !== null ? `${Math.round(precipProb)}%` : '--';
+    // Temperatur-Spread ebenfalls in hero-range zeigen
+    const tempSpreadVal = ((data.tempRange.max - data.tempRange.min) / 2).toFixed(1);
+    document.getElementById('temp-range').textContent =
+        `${Math.round(data.tempRange.min)}° – ${Math.round(data.tempRange.max)}° · ±${tempSpreadVal}°`;
+
+    document.getElementById('wind-display').textContent   = `${wind} km/h`;
+    document.getElementById('pressure-stat').textContent  = `${pressure ?? 1013} hPa`;
 
     const code   = modelArray[0].current.weather_code;
     const info   = WMO[code] || { icon: 'cloud', desc: 'Unbekannt' };
@@ -1542,12 +1555,17 @@ function displayDailyForecast(data, dailyEns) {
         const minT    = Math.round(d.temperature_2m_min[i] ?? 0);
         const prob    = d.precipitation_probability_max[i] ?? 0;
 
-        let spreadHtml = '';
+        let tempSpreadHtml   = '';
+        let precipSpreadHtml = '';
         if (dailyEns) {
-            const spread = computeDailySpread(dailyEns, i);
-            if (spread != null) {
-                const col = spread < 1.5 ? '#34d399' : spread < 3 ? '#f59e0b' : '#f87171';
-                spreadHtml = `<span class="d-spread" style="color:${col}">±${spread.toFixed(1)}°</span>`;
+            const { tempSpread, precipSpread } = computeDailySpread(dailyEns, i);
+            if (tempSpread != null) {
+                const col = tempSpread < 1.5 ? '#34d399' : tempSpread < 3 ? '#f59e0b' : '#f87171';
+                tempSpreadHtml = `<span class="d-spread" style="color:${col}">±${tempSpread.toFixed(1)}°</span>`;
+            }
+            if (precipSpread != null && precipSpread >= 0.2) {
+                const col = precipSpread < 1 ? '#34d399' : precipSpread < 3 ? '#f59e0b' : '#f87171';
+                precipSpreadHtml = `<span class="d-precip-spread" style="color:${col}">±${precipSpread.toFixed(1)}mm</span>`;
             }
         }
 
@@ -1559,8 +1577,9 @@ function displayDailyForecast(data, dailyEns) {
             <span class="d-date">${date.getDate()}.${date.getMonth() + 1}.</span>
             <div class="d-icon"><i data-lucide="${info.icon}"></i></div>
             <span class="d-max">${maxT}°</span>
-            <span class="d-min">${minT}° ${spreadHtml}</span>
+            <span class="d-min">${minT}° ${tempSpreadHtml}</span>
             <div class="d-precip-bar-wrap"><div class="d-precip-bar" style="width:${prob}%"></div></div>
+            ${precipSpreadHtml}
         </div>`;
     }).join('');
 
@@ -1570,12 +1589,22 @@ function displayDailyForecast(data, dailyEns) {
 }
 
 function computeDailySpread(dailyEns, i) {
-    const eMax = dailyEns.ecmwf?.daily?.temperature_2m_max?.[i];
-    const gMax = dailyEns.gfs?.daily?.temperature_2m_max?.[i];
-    const eMin = dailyEns.ecmwf?.daily?.temperature_2m_min?.[i];
-    const gMin = dailyEns.gfs?.daily?.temperature_2m_min?.[i];
-    if (eMax == null || gMax == null) return null;
-    return (Math.abs(eMax - gMax) + Math.abs((eMin ?? 0) - (gMin ?? 0))) / 2;
+    // Collect all available model values for this day
+    const models = Object.values(dailyEns).filter(Boolean);
+
+    const maxTemps   = models.map(m => m.daily?.temperature_2m_max?.[i]).filter(v => v != null);
+    const minTemps   = models.map(m => m.daily?.temperature_2m_min?.[i]).filter(v => v != null);
+    const precipSums = models.map(m => m.daily?.precipitation_sum?.[i]).filter(v => v != null);
+
+    const tempSpread = maxTemps.length >= 2
+        ? (Math.max(...maxTemps) - Math.min(...maxTemps) + Math.max(...minTemps) - Math.min(...minTemps)) / 2
+        : null;
+
+    const precipSpread = precipSums.length >= 2
+        ? (Math.max(...precipSums) - Math.min(...precipSums)) / 2
+        : null;
+
+    return { tempSpread, precipSpread };
 }
 
 // ─── Tag-Detail-Panel ────────────────────────────────────────────────────────
